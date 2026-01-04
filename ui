@@ -1,0 +1,1862 @@
+-- Variables 
+    -- Services
+    local UserInput, HTTP, GUI, Runner, Statistics, Animator, Audio, World, PlayerService = game:GetService("UserInputService"), game:GetService("HttpService"), game:GetService("GuiService"), game:GetService("RunService"), game:GetService("Stats"), game:GetService("TweenService"), game:GetService("SoundService"), game:GetService("Workspace"), game:GetService("Players")
+    local ViewCamera, LocalUser, InterfaceOffset = World.CurrentCamera, PlayerService.LocalPlayer, GUI:GetGuiInset().Y
+    local PlayerInterface = LocalUser.PlayerGui
+    local SystemInterface = game:GetService("CoreGui")
+    local pointer = LocalUser:GetMouse()
+    local v2, v3, u2, u1, rectangle, u2_offset = Vector2.new, Vector3.new, UDim2.new, UDim.new, Rect.new, UDim2.fromOffset
+    local col, fromRGB, fromHex, fromHSV, colSeq, colKey, numSeq, numKey = Color3.new, Color3.fromRGB, Color3.fromHex, Color3.fromHSV, ColorSequence.new, ColorSequenceKeypoint.new, NumberSequence.new, NumberSequenceKeypoint.new
+
+     local Framework = {
+        Path = LibaryName,
+        Storage = {
+            "/configs",
+        },
+        Flags = {},
+        ConfigSettings = {},
+        Connections = {},   
+        Toast = {Items = {}},
+        ActiveElement = {}; -- type: table or userdata
+        AnimationStyle = Enum.EasingStyle.Quint;
+        AnimationDuration = 0.25;
+        DragSpeed = .05,
+        CopiedColor = nil,
+    }
+
+     local ColorSchemes = {
+        default = {
+            primary = fromRGB(255, 0, 0),
+        },
+        helpers = {},
+        transitions = {
+            Active = {};
+            Inactive = {};
+        },
+    }
+
+    for scheme,shade in pairs(ColorSchemes.default) do 
+        ColorSchemes.helpers[scheme] = {
+            BackgroundColor3 = {},
+            TextColor3 = {},
+            ImageColor3 = {},
+            ScrollBarImageColor3 = {},
+            Color = {},
+        }
+    end 
+
+    local InputMap = {
+        [Enum.KeyCode.LeftShift] = "LSHIFT",
+        [Enum.KeyCode.RightShift] = "RSHIFT",
+        [Enum.KeyCode.LeftControl] = "LCTRL",
+        [Enum.KeyCode.RightControl] = "RCTRL",
+        [Enum.KeyCode.Insert] = "INS",
+        [Enum.KeyCode.Backspace] = "BACKSPACE",
+        [Enum.KeyCode.Return] = "RETURN",
+        [Enum.KeyCode.LeftAlt] = "LALT",
+        [Enum.KeyCode.RightAlt] = "RALT",
+        [Enum.KeyCode.CapsLock] = "CAPS",
+        [Enum.KeyCode.One] = "1",
+        [Enum.KeyCode.Two] = "2",
+        [Enum.KeyCode.Three] = "3",
+        [Enum.KeyCode.Four] = "4",
+        [Enum.KeyCode.Five] = "5",
+        [Enum.KeyCode.Six] = "6",
+        [Enum.KeyCode.Seven] = "7",
+        [Enum.KeyCode.Eight] = "8",
+        [Enum.KeyCode.Nine] = "9",
+        [Enum.KeyCode.Zero] = "0",
+        [Enum.KeyCode.KeypadOne] = "Num1",
+        [Enum.KeyCode.KeypadTwo] = "Num2",
+        [Enum.KeyCode.KeypadThree] = "Num3",
+        [Enum.KeyCode.KeypadFour] = "Num4",
+        [Enum.KeyCode.KeypadFive] = "Num5",
+        [Enum.KeyCode.KeypadSix] = "Num6",
+        [Enum.KeyCode.KeypadSeven] = "Num7",
+        [Enum.KeyCode.KeypadEight] = "Num8",
+        [Enum.KeyCode.KeypadNine] = "Num9",
+        [Enum.KeyCode.KeypadZero] = "Num0",
+        [Enum.KeyCode.Minus] = "-",
+        [Enum.KeyCode.Equals] = "=",
+        [Enum.KeyCode.Tilde] = "~",
+        [Enum.KeyCode.LeftBracket] = "[",
+        [Enum.KeyCode.RightBracket] = "]",
+        [Enum.KeyCode.RightParenthesis] = ")",
+        [Enum.KeyCode.LeftParenthesis] = "(",
+        [Enum.KeyCode.Semicolon] = ",",
+        [Enum.KeyCode.Quote] = "'",
+        [Enum.KeyCode.BackSlash] = "\\",
+        [Enum.KeyCode.Comma] = ",",
+        [Enum.KeyCode.Period] = ".",
+        [Enum.KeyCode.Slash] = "/",
+        [Enum.KeyCode.Asterisk] = "*",
+        [Enum.KeyCode.Plus] = "+",
+        [Enum.KeyCode.Period] = ".",
+        [Enum.KeyCode.Backquote] = "`",
+        [Enum.UserInputType.MouseButton1] = "MB1",
+        [Enum.UserInputType.MouseButton2] = "MB2",
+        [Enum.UserInputType.MouseButton3] = "MB3",
+        [Enum.KeyCode.Escape] = "ESCAPE",
+        [Enum.KeyCode.Space] = "SPACE",
+    }
+
+        Framework.__index = Framework
+
+    local Flags = {}
+    Framework.Flags = Flags 
+    local ConfigSettings = Framework.ConfigSettings
+    local Toast = Framework.Toast
+    local Theme = {Colors = {AccentColor = Color3.fromRGB(255, 80, 70)}}
+
+    -- Framework functions 
+    -- Misc functions
+        function Framework:GetTransparency(obj)
+            if obj:IsA("Frame") then
+                return {"BackgroundTransparency"}
+            elseif obj:IsA("TextLabel") or obj:IsA("TextButton") then
+                return { "TextTransparency", "BackgroundTransparency" }
+            elseif obj:IsA("ImageLabel") or obj:IsA("ImageButton") then
+                return { "BackgroundTransparency", "ImageTransparency" }
+            elseif obj:IsA("ScrollingFrame") then
+                return { "BackgroundTransparency", "ScrollBarImageTransparency" }
+            elseif obj:IsA("TextBox") then
+                return { "TextTransparency", "BackgroundTransparency" }
+            elseif obj:IsA("UIStroke") then 
+                return { "Transparency" }
+            end
+            
+            return nil
+        end
+
+        function Framework:Tween(Object, props, Info)
+            local tween = Animator:Create(Object, Info or TweenInfo.new(Framework.AnimationDuration, Framework.AnimationStyle, Enum.EasingDirection.InOut, 0, false, 0), props)
+            tween:Play()
+            return tween
+        end
+
+        function Framework:Fade(obj, prop, vis, speed)
+            if not (obj and prop) then
+                return
+            end
+
+            local OldTransparency = obj[prop]
+            obj[prop] = vis and 1 or OldTransparency
+
+            local Tween = Framework:Tween(obj, { [prop] = vis and OldTransparency or 1 }, TweenInfo.new(speed or Framework.AnimationDuration, Framework.AnimationStyle, Enum.EasingDirection.InOut, 0, false, 0))
+
+            Framework:Connection(Tween.Completed, function()
+                if not vis then
+                    task.wait()
+                    obj[prop] = OldTransparency
+                end
+            end)
+
+            return Tween
+        end
+
+        function Framework:Hovering(Object)
+            local mousePos = UserInput:GetMouseLocation()
+            if type(Object) == "table" then 
+                local Pass = false
+                for _,obj in Object do 
+                    if Framework:Hovering(obj) then 
+                        Pass = true
+                        return Pass
+                    end 
+                end 
+            else 
+                local y_cond = Object.AbsolutePosition.Y <= mousePos.Y and mousePos.Y <= Object.AbsolutePosition.Y + Object.AbsoluteSize.Y
+                local x_cond = Object.AbsolutePosition.X <= mousePos.X and mousePos.X <= Object.AbsolutePosition.X + Object.AbsoluteSize.X
+                return (y_cond and x_cond)
+            end 
+        end  
+
+        function Framework:ConvertHex(color)
+            local r = math.floor(color.R * 255)
+            local g = math.floor(color.G * 255)
+            local b = math.floor(color.B * 255)
+            return string.format("#%02X%02X%02X", r, g, b)
+        end
+
+        function Framework:ConvertFromHex(color)
+            color = color:gsub("#", "")
+            local r = tonumber(color:sub(1, 2), 16) / 255
+            local g = tonumber(color:sub(3, 4), 16) / 255
+            local b = tonumber(color:sub(5, 6), 16) / 255
+            return Color3.new(r, g, b)
+        end
+
+        function Framework:Draggify(Parent)
+            local Dragging = false 
+            local InitialSize = Parent.Position
+            local InitialPosition 
+
+            Parent.InputBegan:Connect(function(Input)
+                if Input.UserInputType == Enum.UserInputType.MouseButton1 then
+                    Dragging = true
+                    InitialPosition = Input.Position
+                    InitialSize = Parent.Position
+                end
+            end)
+
+            Parent.InputEnded:Connect(function(input)
+                if input.UserInputType == Enum.UserInputType.MouseButton1 then
+                    Dragging = false
+                end
+            end)
+
+            UserInput.InputChanged:Connect(function(Input, gameProcessed) 
+                if Dragging and Input.UserInputType == Enum.UserInputType.MouseMovement then
+                    local Horizontal = ViewCamera.ViewportSize.X
+                    local Vertical = ViewCamera.ViewportSize.Y
+
+                    local NewPosition = UDim2.new(
+                        0,
+                        math.clamp(
+                            InitialSize.X.Offset + (Input.Position.X - InitialPosition.X),
+                            0,
+                            Horizontal - Parent.Size.X.Offset
+                        ),
+                        0,
+                        math.clamp(
+                            InitialSize.Y.Offset + (Input.Position.Y - InitialPosition.Y),
+                            0,
+                            Vertical - Parent.Size.Y.Offset
+                        )
+                    )
+
+                    Animator:Create(Parent, TweenInfo.new(Framework.DragSpeed, Enum.EasingStyle.Linear), {Position = NewPosition}):Play()
+                end
+            end)
+        end 
+
+        function Framework:Convert(str)
+            local Values = {}
+
+            for Value in string.gmatch(str, "[^,]+") do
+                table.insert(Values, tonumber(Value))
+            end
+
+            if #Values == 4 then              
+                return unpack(Values)
+            else
+                return
+            end
+        end
+        
+        function Framework:Lerp(start, finish, t)
+            t = t or 1 / 8
+
+            return start * (1 - t) + finish * t
+        end
+
+        function Framework:ConvertEnum(enum)
+            local EnumParts = {}
+            
+            for part in string.gmatch(enum, "[%w_]+") do
+                table.insert(EnumParts, part)
+            end
+        
+            local EnumTable = Enum
+
+            for i = 2, #EnumParts do
+                local EnumItem = EnumTable[EnumParts[i]]
+        
+                EnumTable = EnumItem
+            end
+            
+            return EnumTable
+        end
+
+        function Framework:ConvertHex(color, alpha)
+            local r = math.floor(color.R * 255)
+            local g = math.floor(color.G * 255)
+            local b = math.floor(color.B * 255)
+            local a = alpha and math.floor(alpha * 255) or 255
+            return string.format("#%02X%02X%02X%02X", r, g, b, a)
+        end
+
+        function Framework:ConvertFromHex(color)
+            color = color:gsub("#", "")
+            local r = tonumber(color:sub(1, 2), 16) / 255
+            local g = tonumber(color:sub(3, 4), 16) / 255
+            local b = tonumber(color:sub(5, 6), 16) / 255
+            local a = tonumber(color:sub(7, 8), 16) and tonumber(color:sub(7, 8), 16) / 255 or 1
+            return Color3.new(r, g, b), a
+        end
+
+        local ConfigHolder;
+        function Framework:UpdateConfigList() 
+            if not ConfigHolder then 
+                return 
+            end
+            
+            local List = {}
+            
+            for _,file in listfiles(Framework.Directory .. "/configs") do
+                local Name = file:gsub(Framework.Directory .. "/configs\\", ""):gsub(".cfg", ""):gsub(Framework.Directory .. "\\configs\\", "")
+                List[#List + 1] = Name
+            end
+
+            -- for _,v in List do 
+            --     print(_,v)
+            -- end 
+
+            ConfigHolder.RefreshOptions(List)
+        end
+
+        function Framework:GetConfig()
+            local Config = {}
+            
+            for Idx, Value in Flags do
+                if type(Value) == "table" and Value.key then
+                    Config[Idx] = {active = Value.active, mode = Value.mode, key = tostring(Value.key)}
+                elseif type(Value) == "table" and Value["Transparency"] and Value["Color"] then
+                    Config[Idx] = {Transparency = Value["Transparency"], Color = Value["Color"]:ToHex()}
+                else
+                    Config[Idx] = Value
+                end
+            end
+            
+            return Config
+        end
+
+        function Framework:LoadConfig(JSON) 
+            local Config = HTTP:JSONDecode(JSON)
+            
+            for Idx, Value in Config do                
+                if Idx == "config_name_list" then 
+                    continue 
+                end
+
+                local Function = ConfigSettings[Idx]
+
+                if Function then 
+                    if type(Value) == "table" and Value["Transparency"] and Value["Color"] then
+                        Function(fromHex(Value["Color"]), Value["Transparency"])
+                    elseif type(Value) == "table" and Value["active"] ~= nil then 
+                        Function(Value)
+                    else
+                        Function(Value)
+                    end
+                end 
+            end 
+        end
+
+        function Framework:Connection(signal, callback)
+            local connection = signal:Connect(callback)
+            
+            table.insert(Framework.Connections, connection)
+
+            return connection 
+        end
+
+        function Framework:CloseElement() 
+            local IsMulti = typeof(Framework.OpenElement)
+
+            if not Framework.OpenElement then 
+                return 
+            end
+
+            for i = 1, #Framework.OpenElement do
+                local Data = Framework.OpenElement[i]
+
+                if Data.Ignore then 
+                    continue 
+                end 
+
+                Data.SetVisible(false)
+                Data.Open = false
+            end
+
+            Framework.OpenElement = {}
+        end
+
+        function Framework:Create(instance, options)
+            local ins = Instance.new(instance) 
+
+            for prop, value in options do
+                ins[prop] = value
+            end
+
+            if ins.ClassName == "TextButton" then 
+                ins["AutoButtonColor"] = false 
+                ins["Text"] = ""
+                -- Framework:Themify(ins, "text_color", "TextColor3")
+            end 
+
+            -- if ins.ClassName == "TextLabel" or ins.ClassName == "TextBox" then 
+            --     Framework:Themify(ins, "text_color", "TextColor3")
+            --     Framework:Themify(ins, "unselected", "TextColor3")
+            -- end 
+
+            return ins 
+        end
+
+        function Framework:Unload() 
+            if Framework.Items then 
+                Framework.Items:Destroy()
+            end
+
+            if Framework.Other then 
+                Framework.Other:Destroy()
+            end
+            
+            for _,connection in Framework.Connections do 
+                connection:Disconnect() 
+                connection = nil 
+            end
+        end
+
+        function Framework:Window(options)
+            options = options or {}
+            local Cfg = {
+                Name = options.Name or "ZZHub",
+                Size = options.Size or UDim2.new(0, 800, 0, 500),
+                FrameworkIcon = options.FrameworkIcon or "rbxassetid://119538766819865",
+                TabInfo = {},
+                Items = {},
+            }
+
+            Framework.FrameworkIcon = Cfg.FrameworkIcon
+
+            Framework.Items = Framework:Create("ScreenGui", {
+                Parent = SystemInterface,
+                Name = "\0",
+                Enabled = true,
+                ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
+                IgnoreGuiInset = true,
+            })
+
+            local Items = Cfg.Items
+
+            Items.Window = Framework:Create("Frame", {
+                Parent = Framework.Items,
+                Name = "\0",
+                Visible = true,
+                Position = UDim2.new(0.5, -Cfg.Size.X.Offset / 2, 0.5, -Cfg.Size.Y.Offset / 2),
+                BorderColor3 = Color3.fromRGB(0, 0, 0),
+                Size = Cfg.Size,
+                BorderSizePixel = 0,
+                ClipsDescendants = true,
+                BackgroundColor3 = Color3.fromRGB(14, 14, 18),
+            })
+
+            Framework:Create("UICorner", {
+                Parent = Items.Window,
+                CornerRadius = UDim.new(0, 10),
+            })
+
+            Items.Navigation = Framework:Create("Frame", {
+                Name = "\0",
+                Parent = Items.Window,
+                Position = UDim2.new(0, 18, 0.5, 0),
+                AnchorPoint = Vector2.new(0, 0.5),
+                Size = UDim2.new(0, 105, 0, 460),
+                BorderSizePixel = 0,
+                BackgroundColor3 = Color3.fromRGB(16, 16, 20),
+            })
+
+            Framework:Create("UICorner", {
+                Parent = Items.Navigation,
+                CornerRadius = UDim.new(0, 10),
+            })
+
+            Items.FrameworkLibaryIcon = Framework:Create("ImageLabel", {
+                Name = "\0",
+                Parent = Items.Navigation,
+                Position = UDim2.new(0.5, 0, 0, 28),
+                AnchorPoint = Vector2.new(0.5, 0),
+                Size = UDim2.new(0, 45, 0, 45),
+                Image = Cfg.FrameworkIcon,
+                BackgroundTransparency = 1,
+                BorderSizePixel = 0,
+            })
+
+            Items.TabHolder = Framework:Create("Frame", {
+                Name = "\0",
+                Parent = Items.Navigation,
+                Position = UDim2.new(0.5, 0, 0, 110),
+                AnchorPoint = Vector2.new(0.5, 0),
+                Size = UDim2.new(0, 62, 0, 320),
+                BackgroundTransparency = 1,
+                BorderSizePixel = 0,
+            })
+
+            Framework:Create("UIListLayout", {
+                Parent = Items.TabHolder,
+                Padding = UDim.new(0, 18),
+                SortOrder = Enum.SortOrder.LayoutOrder,
+            })
+
+            Items.Pages = Framework:Create("Frame", {
+                Name = "Pages",
+                Parent = Items.Window,
+                AnchorPoint = Vector2.new(0, 0.5),
+                Position = UDim2.new(0, 144, 0.5, 0),
+                Size = UDim2.new(0, 636, 0, 460),
+                BorderSizePixel = 0,
+                BackgroundColor3 = Color3.fromRGB(16, 16, 20),
+            })
+
+            Framework:Create("UICorner", {
+                Parent = Items.Pages,
+                CornerRadius = UDim.new(0, 10),
+            })
+
+            local Dragging = false
+            local DragStart = nil
+            local StartPos = nil
+
+            Items.Window.InputBegan:Connect(function(input)
+                if input.UserInputType == Enum.UserInputType.MouseButton1 then
+                    Dragging = true
+                    DragStart = input.Position
+                    StartPos = Items.Window.Position
+                end
+            end)
+
+            Items.Window.InputEnded:Connect(function(input)
+                if input.UserInputType == Enum.UserInputType.MouseButton1 then
+                    Dragging = false
+                end
+            end)
+
+            UserInput.InputChanged:Connect(function(input)
+                if Dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
+                    local delta = input.Position - DragStart
+                    local newPos = UDim2.new(
+                        StartPos.X.Scale,
+                        StartPos.X.Offset + delta.X,
+                        StartPos.Y.Scale,
+                        StartPos.Y.Offset + delta.Y
+                    )
+                    Animator:Create(Items.Window, TweenInfo.new(0.05, Enum.EasingStyle.Linear), {Position = newPos}):Play()
+                end
+            end)
+
+            local ActiveTab = nil
+            local TabList = {}
+
+            function Cfg:Tab(tabOptions)
+                tabOptions = tabOptions or {}
+                local TabCfg = {
+                    Name = tabOptions.Name or "Tab",
+                    Icon = tabOptions.TabIcon or tabOptions.Icon or "rbxassetid://122966298692553",
+                    Items = {},
+                    Sections = {},
+                }
+
+                local TabButton = Framework:Create("Frame", {
+                    Name = "Tab",
+                    Parent = Items.TabHolder,
+                    Size = UDim2.new(0, 65, 0, 65),
+                    BorderSizePixel = 0,
+                    BackgroundColor3 = Color3.fromRGB(21, 20, 25),
+                    BackgroundTransparency = 1,
+                })
+
+                Framework:Create("UICorner", {
+                    Parent = TabButton,
+                    CornerRadius = UDim.new(0, 10),
+                })
+
+                local TabIcon = Framework:Create("ImageLabel", {
+                    Name = "Icon",
+                    Parent = TabButton,
+                    ImageColor3 = Color3.fromRGB(44, 44, 48),
+                    AnchorPoint = Vector2.new(0.5, 0.5),
+                    Image = TabCfg.Icon,
+                    BackgroundTransparency = 1,
+                    Position = UDim2.new(0.5, 0, 0.5, 0),
+                    Size = UDim2.new(0, 35, 0, 35),
+                    BorderSizePixel = 0,
+                    BackgroundColor3 = Color3.fromRGB(255, 255, 255),
+                })
+
+                local TabEffect = Framework:Create("Frame", {
+                    Name = "ActiveTabEffect",
+                    Parent = TabButton,
+                    Position = UDim2.new(1, 0, 0, 0),
+                    Size = UDim2.new(0, 46, 0, 65),
+                    BorderSizePixel = 0,
+                    BackgroundColor3 = Color3.fromRGB(16, 16, 20),
+                    Visible = false,
+                })
+
+                Framework:Create("UICorner", {
+                    Parent = TabEffect,
+                    CornerRadius = UDim.new(0, 10),
+                })
+
+                local TabClickButton = Framework:Create("TextButton", {
+                    Name = "\0",
+                    Parent = TabButton,
+                    Size = UDim2.new(1, 0, 1, 0),
+                    BackgroundTransparency = 1,
+                    Text = "",
+                    ZIndex = 5,
+                })
+
+                local TabPage = Framework:Create("Frame", {
+                    Name = "\0",
+                    Parent = Items.Pages,
+                    Size = UDim2.new(1, 0, 1, 0),
+                    BackgroundTransparency = 1,
+                    BorderSizePixel = 0,
+                    Visible = false,
+                })
+
+                local Container = Framework:Create("ScrollingFrame", {
+                    Name = "Container",
+                    Parent = TabPage,
+                    Size = UDim2.new(0, 636, 0, 460),
+                    BackgroundTransparency = 1,
+                    BorderSizePixel = 0,
+                    ScrollBarThickness = 0,
+                    ScrollBarImageColor3 = Color3.fromRGB(0, 0, 0),
+                    Active = true,
+                    CanvasSize = UDim2.new(0, 0, 0, 0),
+                    AutomaticCanvasSize = Enum.AutomaticSize.Y,
+                })
+
+                Framework:Create("UIListLayout", {
+                    Parent = Container,
+                    FillDirection = Enum.FillDirection.Horizontal,
+                    HorizontalAlignment = Enum.HorizontalAlignment.Center,
+                    Padding = UDim.new(0, 22),
+                    SortOrder = Enum.SortOrder.LayoutOrder,
+                })
+
+                Framework:Create("UIPadding", {
+                    Parent = Container,
+                    PaddingTop = UDim.new(0, 21),
+                })
+
+                local LeftHolder = Framework:Create("Frame", {
+                    Name = "LeftHolder",
+                    Parent = Container,
+                    Size = UDim2.new(0, 285, 0, 30),
+                    AutomaticSize = Enum.AutomaticSize.XY,
+                    BackgroundTransparency = 1,
+                    Position = UDim2.new(0.038, 0, 0.014, 0),
+                })
+
+                Framework:Create("UIListLayout", {
+                    Parent = LeftHolder,
+                    Padding = UDim.new(0, 24),
+                    SortOrder = Enum.SortOrder.LayoutOrder,
+                })
+
+                local RightHolder = Framework:Create("Frame", {
+                    Name = "RightHolder",
+                    Parent = Container,
+                    Size = UDim2.new(0, 285, 0, 30),
+                    AutomaticSize = Enum.AutomaticSize.X,
+                    BackgroundTransparency = 1,
+                    Position = UDim2.new(0.038, 0, 0.014, 0),
+                })
+
+                Framework:Create("UIListLayout", {
+                    Parent = RightHolder,
+                    Padding = UDim.new(0, 8),
+                    SortOrder = Enum.SortOrder.LayoutOrder,
+                })
+
+                TabCfg.Items.Page = TabPage
+                TabCfg.Items.Container = Container
+                TabCfg.Items.LeftHolder = LeftHolder
+                TabCfg.Items.RightHolder = RightHolder
+                TabCfg.Items.Button = TabButton
+                TabCfg.Items.Icon = TabIcon
+                TabCfg.Items.Effect = TabEffect
+
+                local function SetActive(active)
+                    if active then
+                        TabEffect.Visible = true
+                        TabPage.Visible = true
+                        Animator:Create(TabButton, TweenInfo.new(0.25, Enum.EasingStyle.Quint), {BackgroundTransparency = 0}):Play()
+                        Animator:Create(TabIcon, TweenInfo.new(0.25, Enum.EasingStyle.Quint), {ImageColor3 = Theme.Colors.AccentColor}):Play()
+                        
+                        -- Animate container holders first
+                        for _, child in Container:GetChildren() do
+                            if child:IsA("Frame") then
+                                child.Position = UDim2.new(child.Position.X.Scale, child.Position.X.Offset, 0, 20)
+                                local targetPos = UDim2.new(child.Position.X.Scale, child.Position.X.Offset, 0, 0)
+                                Animator:Create(child, TweenInfo.new(0.35, Enum.EasingStyle.Quint), {Position = targetPos}):Play()
+                                
+                                -- Then animate individual sections with staggered timing
+                                for i, section in ipairs(child:GetChildren()) do
+                                    if section:IsA("Frame") and section.Name ~= "UIListLayout" then
+                                        section.Position = UDim2.new(0.5, 0, 0, 15)
+                                        task.spawn(function()
+                                            task.wait(0.05 * i) -- Staggered delay
+                                            Animator:Create(section, TweenInfo.new(0.4, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+                                                Position = UDim2.new(0.5, 0, 0, 0)
+                                            }):Play()
+                                        end)
+                                    end
+                                end
+                            end
+                        end
+                    else
+                        Animator:Create(TabButton, TweenInfo.new(0.25, Enum.EasingStyle.Quint), {BackgroundTransparency = 1}):Play()
+                        Animator:Create(TabIcon, TweenInfo.new(0.25, Enum.EasingStyle.Quint), {ImageColor3 = Color3.fromRGB(44, 44, 48)}):Play()
+                        TabEffect.Visible = false
+                        TabPage.Visible = false
+                    end
+                end
+
+                TabClickButton.MouseButton1Click:Connect(function()
+                    if ActiveTab and ActiveTab ~= TabCfg then
+                        ActiveTab.SetActive(false)
+                    end
+                    ActiveTab = TabCfg
+                    SetActive(true)
+                end)
+
+                TabCfg.SetActive = SetActive
+                table.insert(TabList, TabCfg)
+
+                if #TabList == 1 then
+                    ActiveTab = TabCfg
+                    SetActive(true)
+                end
+
+                function TabCfg:Section(sectionOptions)
+                    local SectionCfg = {
+                        Name = sectionOptions.Name or "Section",
+                        Side = sectionOptions.Side or "Left",
+                        Items = {},
+                    }
+
+                    local Parent = SectionCfg.Side == "Right" and RightHolder or LeftHolder
+
+                    local SectionFrame = Framework:Create("Frame", {
+                        Name = "\0",
+                        Parent = Parent,
+                        Size = UDim2.new(0, 285, 0, 1),
+                        AutomaticSize = Enum.AutomaticSize.Y,
+                        BackgroundTransparency = 1,
+                        Position = UDim2.new(0, 0, 0, 20),
+                    })
+                    
+                    -- Initial loading animation for section
+                    Animator:Create(SectionFrame, TweenInfo.new(0.5, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+                        Position = UDim2.new(0, 0, 0, 0)
+                    }):Play()
+
+                    local SectionHeader = Framework:Create("Frame", {
+                        Name = "Header",
+                        Parent = SectionFrame,
+                        Size = UDim2.new(1, 0, 0, 20),
+                        BackgroundTransparency = 1,
+                    })
+
+                    Framework:Create("TextLabel", {
+                        Name = "SectionName",
+                        Parent = SectionHeader,
+                        Text = SectionCfg.Name,
+                        FontFace = Font.new("rbxassetid://12187365364", Enum.FontWeight.ExtraBold, Enum.FontStyle.Normal),
+                        TextColor3 = Color3.fromRGB(89, 91, 98),
+                        TextSize = 16,
+                        BackgroundTransparency = 1,
+                        BackgroundColor3 = Color3.fromRGB(255, 255, 255),
+                        Size = UDim2.new(0, 1, 0, 1),
+                        AutomaticSize = Enum.AutomaticSize.XY,
+                        Position = UDim2.new(0, 0, 0.5, 0),
+                        AnchorPoint = Vector2.new(0, 0.5),
+                    })
+
+                    local SectionHolder = Framework:Create("Frame", {
+                        Name = "\0",
+                        Parent = SectionFrame,
+                        Size = UDim2.new(1, 0, 0, 1),
+                        AutomaticSize = Enum.AutomaticSize.Y,
+                        BackgroundTransparency = 1,
+                        Position = UDim2.new(0, 0, 0, 25),
+                    })
+
+                    Framework:Create("UIListLayout", {
+                        Parent = SectionHolder,
+                        Padding = UDim.new(0, 4),
+                        SortOrder = Enum.SortOrder.LayoutOrder,
+                    })
+
+                    SectionCfg.Items.Holder = SectionHolder
+                    SectionCfg.Items.Frame = SectionFrame
+
+                    function SectionCfg:Toggle(toggleOptions)
+                        local ToggleCfg = {
+                            Name = toggleOptions.Name or "Toggle",
+                            Flag = toggleOptions.Flag or toggleOptions.Name or "Toggle",
+                            Default = toggleOptions.Default or false,
+                            Callback = toggleOptions.Callback or function() end,
+                            Value = toggleOptions.Default or false,
+                        }
+
+                        Flags[ToggleCfg.Flag] = ToggleCfg.Value
+
+                        -- Get component count to calculate staggered delay
+                        local componentCount = 0
+                        for _, child in pairs(SectionHolder:GetChildren()) do
+                            if child:IsA("Frame") then
+                                componentCount = componentCount + 1
+                            end
+                        end
+                        
+                        local ToggleFrame = Framework:Create("Frame", {
+                            Name = "Toggle_Component",
+                            Parent = SectionHolder,
+                            AnchorPoint = Vector2.new(0.5, 0),
+                            Position = UDim2.new(0.5, 0, 0, 15),
+                            Size = UDim2.new(0, 284, 0, 40),
+                            BackgroundColor3 = Color3.fromRGB(19, 18, 23),
+                            BorderSizePixel = 0,
+                            BackgroundTransparency = 1,
+                        })
+                        
+                        -- Animate component with staggered timing
+                        task.spawn(function()
+                            task.wait(0.08 * componentCount) -- Staggered delay based on component position
+                            Animator:Create(ToggleFrame, TweenInfo.new(0.4, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+                                Position = UDim2.new(0.5, 0, 0, 0),
+                                BackgroundTransparency = 0
+                            }):Play()
+                        end)
+
+                        Framework:Create("UICorner", {
+                            Parent = ToggleFrame,
+                        })
+
+                        Framework:Create("TextLabel", {
+                            Parent = ToggleFrame,
+                            Name = "DropdownLabel",
+                            Text = ToggleCfg.Name,
+                            FontFace = Font.new("rbxassetid://12187365364", Enum.FontWeight.Medium, Enum.FontStyle.Normal),
+                            TextColor3 = Color3.fromRGB(255, 255, 255),
+                            TextSize = 16,
+                            BackgroundTransparency = 1,
+                            BackgroundColor3 = Color3.fromRGB(255, 255, 255),
+                            Size = UDim2.new(0, 1, 0, 1),
+                            AutomaticSize = Enum.AutomaticSize.XY,
+                            Position = UDim2.new(0, 14, 0.5, 0),
+                            AnchorPoint = Vector2.new(0, 0.5),
+                        })
+
+                        local ToggleSwitch = Framework:Create("Frame", {
+                            Name = "ToggleSwitch",
+                            Parent = ToggleFrame,
+                            AnchorPoint = Vector2.new(1, 0.5),
+                            Position = UDim2.new(1, -12, 0.5, 0),
+                            Size = UDim2.new(0, 32, 0, 16),
+                            BackgroundColor3 = Color3.fromRGB(30, 30, 35),
+                            BorderSizePixel = 0,
+                        })
+
+                        Framework:Create("UICorner", {
+                            Parent = ToggleSwitch,
+                            CornerRadius = UDim.new(1.1, 0),
+                        })
+
+                        local ToggleDot = Framework:Create("Frame", {
+                            Name = "Dot",
+                            Parent = ToggleSwitch,
+                            Size = UDim2.new(0, 16, 0, 16),
+                            Position = UDim2.new(0, 0, 0.5, 0),
+                            AnchorPoint = Vector2.new(0, 0.5),
+                            BackgroundColor3 = Color3.fromRGB(16, 16, 20),
+                            BorderSizePixel = 0,
+                        })
+
+                        Framework:Create("UICorner", {
+                            Parent = ToggleDot,
+                            CornerRadius = UDim.new(1.1, 0),
+                        })
+
+                        local DotStroke = Framework:Create("UIStroke", {
+                            Parent = ToggleDot,
+                            Color = Color3.fromRGB(30, 30, 35),
+                        })
+
+                        local ToggleButton = Framework:Create("TextButton", {
+                            Parent = ToggleFrame,
+                            Size = UDim2.new(1, 0, 1, 0),
+                            BackgroundTransparency = 1,
+                            Text = "",
+                            ZIndex = 5,
+                        })
+
+                        local function UpdateToggle(value)
+                            ToggleCfg.Value = value
+                            Flags[ToggleCfg.Flag] = value
+
+                            if value then
+                                Animator:Create(ToggleSwitch, TweenInfo.new(0.2), {BackgroundColor3 = Theme.Colors.AccentColor}):Play()
+                                Animator:Create(ToggleDot, TweenInfo.new(0.2), {Position = UDim2.new(1, 0, 0.5, 0), AnchorPoint = Vector2.new(1, 0.5)}):Play()
+                                Animator:Create(DotStroke, TweenInfo.new(0.2), {Color = Theme.Colors.AccentColor}):Play()
+                            else
+                                Animator:Create(ToggleSwitch, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(30, 30, 35)}):Play()
+                                Animator:Create(ToggleDot, TweenInfo.new(0.2), {Position = UDim2.new(0, 0, 0.5, 0), AnchorPoint = Vector2.new(0, 0.5)}):Play()
+                                Animator:Create(DotStroke, TweenInfo.new(0.2), {Color = Color3.fromRGB(30, 30, 35)}):Play()
+                            end
+
+                            ToggleCfg.Callback(value)
+                        end
+
+                        ToggleButton.MouseButton1Click:Connect(function()
+                            UpdateToggle(not ToggleCfg.Value)
+                        end)
+
+                        UpdateToggle(ToggleCfg.Default)
+
+                        ToggleCfg.Set = UpdateToggle
+                        return ToggleCfg
+                    end
+
+                    function SectionCfg:Slider(sliderOptions)
+                        local SliderCfg = {
+                            Name = sliderOptions.Name or "Slider",
+                            Flag = sliderOptions.Flag or sliderOptions.Name or "Slider",
+                            Min = sliderOptions.Min or 0,
+                            Max = sliderOptions.Max or 100,
+                            Default = sliderOptions.Default or sliderOptions.Min or 0,
+                            Decimals = sliderOptions.Decimals or 0,
+                            Suffix = sliderOptions.Suffix or "",
+                            Callback = sliderOptions.Callback or function() end,
+                            Value = sliderOptions.Default or sliderOptions.Min or 0,
+                        }
+
+                        Flags[SliderCfg.Flag] = SliderCfg.Value
+
+                        -- Get component count to calculate staggered delay
+                        local componentCount = 0
+                        for _, child in pairs(SectionHolder:GetChildren()) do
+                            if child:IsA("Frame") then
+                                componentCount = componentCount + 1
+                            end
+                        end
+                        
+                        local SliderFrame = Framework:Create("Frame", {
+                            Name = "Slider_Component",
+                            Parent = SectionHolder,
+                            AnchorPoint = Vector2.new(0.5, 0),
+                            Position = UDim2.new(0.5, 0, 0, 15),
+                            Size = UDim2.new(0, 284, 0, 40),
+                            BackgroundColor3 = Color3.fromRGB(19, 18, 23),
+                            BorderSizePixel = 0,
+                            BackgroundTransparency = 1,
+                        })
+                        
+                        -- Animate component with staggered timing
+                        task.spawn(function()
+                            task.wait(0.08 * componentCount) -- Staggered delay based on component position
+                            Animator:Create(SliderFrame, TweenInfo.new(0.4, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+                                Position = UDim2.new(0.5, 0, 0, 0),
+                                BackgroundTransparency = 0
+                            }):Play()
+                        end)
+
+                        Framework:Create("UICorner", {
+                            Parent = SliderFrame,
+                        })
+
+                        Framework:Create("TextLabel", {
+                            Parent = SliderFrame,
+                            Name = "DropdownLabel",
+                            Text = SliderCfg.Name,
+                            FontFace = Font.new("rbxassetid://12187365364", Enum.FontWeight.Medium, Enum.FontStyle.Normal),
+                            TextColor3 = Color3.fromRGB(255, 255, 255),
+                            TextSize = 16,
+                            BackgroundTransparency = 1,
+                            BackgroundColor3 = Color3.fromRGB(255, 255, 255),
+                            Size = UDim2.new(0, 1, 0, 1),
+                            AutomaticSize = Enum.AutomaticSize.XY,
+                            Position = UDim2.new(0, 14, 0.5, 0),
+                            AnchorPoint = Vector2.new(0, 0.5),
+                        })
+
+                        local Progress_BG = Framework:Create("Frame", {
+                            Name = "Progress_BG",
+                            Parent = SliderFrame,
+                            AnchorPoint = Vector2.new(1, 1),
+                            Position = UDim2.new(1, -12, 1, -8),
+                            Size = UDim2.new(0, 114, 0, 6),
+                            BackgroundColor3 = Color3.fromRGB(23, 23, 27),
+                            BorderSizePixel = 0,
+                        })
+
+                        Framework:Create("UICorner", {
+                            Parent = Progress_BG,
+                        })
+
+                        local ProgressBar = Framework:Create("Frame", {
+                            Name = "Progress_Bar",
+                            Parent = Progress_BG,
+                            AnchorPoint = Vector2.new(0, 0.5),
+                            Position = UDim2.new(0, 0, 0.5, 0),
+                            Size = UDim2.new(0, 50, 0, 6),
+                            BackgroundColor3 = Theme.Colors.AccentColor,
+                            BorderSizePixel = 0,
+                        })
+
+                        Framework:Create("UICorner", {
+                            Parent = ProgressBar,
+                        })
+
+                        local SliderPointer = Framework:Create("Frame", {
+                            Name = "Pointer",
+                            Parent = ProgressBar,
+                            AnchorPoint = Vector2.new(1, 0.5),
+                            Position = UDim2.new(1, 0, 0.5, 0),
+                            Size = UDim2.new(0, 10, 0, 10),
+                            BackgroundColor3 = Color3.fromRGB(16, 16, 20),
+                            BorderSizePixel = 0,
+                        })
+
+                        Framework:Create("UICorner", {
+                            Parent = SliderPointer,
+                            CornerRadius = UDim.new(1.1, 0),
+                        })
+
+                        Framework:Create("UIStroke", {
+                            Parent = SliderPointer,
+                            Color = Theme.Colors.AccentColor,
+                        })
+
+                        local ValueHolder = Framework:Create("Frame", {
+                            Name = "ValueHolder",
+                            Parent = SliderFrame,
+                            AnchorPoint = Vector2.new(1, 0.5),
+                            Position = UDim2.new(1, -13, 0.5, -7),
+                            Size = UDim2.new(0, 8, 0, 12),
+                            AutomaticSize = Enum.AutomaticSize.XY,
+                            BackgroundTransparency = 1,
+                            BackgroundColor3 = Color3.fromRGB(255, 255, 255),
+                            BorderSizePixel = 0,
+                        })
+
+                        Framework:Create("UIListLayout", {
+                            Parent = ValueHolder,
+                            Padding = UDim.new(0, 2),
+                            SortOrder = Enum.SortOrder.LayoutOrder,
+                            FillDirection = Enum.FillDirection.Horizontal,
+                        })
+
+                        local ValueTextHolder = Framework:Create("Frame", {
+                            Name = "ValueTextHolder",
+                            Parent = ValueHolder,
+                            BackgroundTransparency = 1,
+                            Size = UDim2.new(0, 4, 0, 12),
+                            AutomaticSize = Enum.AutomaticSize.XY,
+                            BackgroundColor3 = Color3.fromRGB(255, 255, 255),
+                            BorderSizePixel = 0,
+                        })
+
+                        local ValueLabel = Framework:Create("TextLabel", {
+                            Name = "Value",
+                            Parent = ValueTextHolder,
+                            FontFace = Font.new("rbxassetid://12187365364", Enum.FontWeight.Medium, Enum.FontStyle.Normal),
+                            TextColor3 = Color3.fromRGB(255, 255, 255),
+                            Text = tostring(SliderCfg.Value),
+                            AnchorPoint = Vector2.new(1, 0.5),
+                            Position = UDim2.new(1, 0, 0.5, 0),
+                            Size = UDim2.new(0, 1, 0, 1),
+                            AutomaticSize = Enum.AutomaticSize.XY,
+                            TextSize = 14,
+                            BackgroundTransparency = 1,
+                            BackgroundColor3 = Color3.fromRGB(255, 255, 255),
+                            BorderSizePixel = 0,
+                        })
+
+                        Framework:Create("UIListLayout", {
+                            Parent = ValueTextHolder,
+                            SortOrder = Enum.SortOrder.LayoutOrder,
+                        })
+
+                        local DegreeHolder = Framework:Create("Frame", {
+                            Name = "DegreeHolder",
+                            Parent = ValueHolder,
+                            BackgroundTransparency = 1,
+                            Size = UDim2.new(0, 4, 0, 12),
+                            BackgroundColor3 = Color3.fromRGB(255, 255, 255),
+                            BorderSizePixel = 0,
+                        })
+
+                        local DegreeLabel = Framework:Create("TextLabel", {
+                            Name = "Degree",
+                            Parent = DegreeHolder,
+                            FontFace = Font.new("rbxassetid://12187365364", Enum.FontWeight.Medium, Enum.FontStyle.Normal),
+                            TextColor3 = Color3.fromRGB(255, 255, 255),
+                            Text = SliderCfg.Suffix,
+                            AnchorPoint = Vector2.new(1, 0.5),
+                            Position = UDim2.new(1, 0, 0.5, 0),
+                            Size = UDim2.new(0, 1, 0, 1),
+                            AutomaticSize = Enum.AutomaticSize.XY,
+                            TextSize = 14,
+                            BackgroundTransparency = 1,
+                            BackgroundColor3 = Color3.fromRGB(255, 255, 255),
+                            BorderSizePixel = 0,
+                        })
+
+                        Framework:Create("UIListLayout", {
+                            Parent = DegreeHolder,
+                            SortOrder = Enum.SortOrder.LayoutOrder,
+                        })
+
+                        local SliderButton = Framework:Create("TextButton", {
+                            Parent = Progress_BG,
+                            Size = UDim2.new(1, 20, 1, 20),
+                            Position = UDim2.new(0.5, 0, 0.5, 0),
+                            AnchorPoint = Vector2.new(0.5, 0.5),
+                            BackgroundTransparency = 1,
+                            Text = "",
+                            ZIndex = 5,
+                        })
+
+                        local Dragging = false
+
+                        local function UpdateSlider(value)
+                            value = math.clamp(value, SliderCfg.Min, SliderCfg.Max)
+                            local mult = 10 ^ SliderCfg.Decimals
+                            value = math.floor(value * mult + 0.5) / mult
+                            SliderCfg.Value = value
+                            Flags[SliderCfg.Flag] = value
+
+                            local percent = (value - SliderCfg.Min) / (SliderCfg.Max - SliderCfg.Min)
+                            local barWidth = Progress_BG.AbsoluteSize.X
+                            ProgressBar.Size = UDim2.new(0, math.max(barWidth * percent, 0), 0, 6)
+                            ValueLabel.Text = tostring(value)
+
+                            SliderCfg.Callback(value)
+                        end
+
+                        SliderButton.MouseButton1Down:Connect(function()
+                            Dragging = true
+                        end)
+
+                        UserInput.InputEnded:Connect(function(input)
+                            if input.UserInputType == Enum.UserInputType.MouseButton1 then
+                                Dragging = false
+                            end
+                        end)
+
+                        UserInput.InputChanged:Connect(function(input)
+                            if Dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
+                                local mousePos = input.Position.X
+                                local barPos = Progress_BG.AbsolutePosition.X
+                                local barSize = Progress_BG.AbsoluteSize.X
+                                local percent = math.clamp((mousePos - barPos) / barSize, 0, 1)
+                                local value = SliderCfg.Min + (SliderCfg.Max - SliderCfg.Min) * percent
+                                UpdateSlider(value)
+                            end
+                        end)
+
+                        UpdateSlider(SliderCfg.Default)
+
+                        SliderCfg.Set = UpdateSlider
+                        return SliderCfg
+                    end
+
+                    function SectionCfg:Colorpicker(colorOptions)
+                        local ColorCfg = {
+                            Name = colorOptions.Name or "Color",
+                            Flag = colorOptions.Flag or colorOptions.Name or "Colorpicker",
+                            Default = colorOptions.Default or Color3.fromRGB(255, 255, 255),
+                            Alpha = colorOptions.Alpha or 1,
+                            Callback = colorOptions.Callback or function() end,
+                            Open = false,
+                        }
+
+                        local h, s, v = ColorCfg.Default:ToHSV()
+                        local a = ColorCfg.Alpha
+                        Flags[ColorCfg.Flag] = {Color = ColorCfg.Default, Alpha = a}
+
+                        -- Get component count to calculate staggered delay
+                        local componentCount = 0
+                        for _, child in pairs(SectionHolder:GetChildren()) do
+                            if child:IsA("Frame") then
+                                componentCount = componentCount + 1
+                            end
+                        end
+                        
+                        local ColorFrame = Framework:Create("Frame", {
+                            Name = "\0",
+                            Parent = SectionHolder,
+                            Size = UDim2.new(0, 284, 0, 40),
+                            Position = UDim2.new(0.5, 0, 0, 15),
+                            AnchorPoint = Vector2.new(0.5, 0),
+                            BackgroundColor3 = Color3.fromRGB(19, 18, 23),
+                            BorderSizePixel = 0,
+                            BackgroundTransparency = 1,
+                        })
+                        
+                        -- Animate component with staggered timing
+                        task.spawn(function()
+                            task.wait(0.08 * componentCount) -- Staggered delay based on component position
+                            Animator:Create(ColorFrame, TweenInfo.new(0.4, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+                                Position = UDim2.new(0.5, 0, 0, 0),
+                                BackgroundTransparency = 0
+                            }):Play()
+                        end)
+
+                        Framework:Create("UICorner", {
+                            Parent = ColorFrame,
+                            CornerRadius = UDim.new(0, 6),
+                        })
+
+                        Framework:Create("TextLabel", {
+                            Parent = ColorFrame,
+                            Text = ColorCfg.Name,
+                            FontFace = Font.new("rbxassetid://12187365364", Enum.FontWeight.Medium, Enum.FontStyle.Normal),
+                            TextColor3 = Color3.fromRGB(255, 255, 255),
+                            TextSize = 16,
+                            BackgroundTransparency = 1,
+                            Size = UDim2.new(0, 1, 0, 1),
+                            AutomaticSize = Enum.AutomaticSize.XY,
+                            Position = UDim2.new(0, 14, 0.5, 0),
+                            AnchorPoint = Vector2.new(0, 0.5),
+                        })
+
+                        local ColorDisplay = Framework:Create("Frame", {
+                            Name = "\0",
+                            Parent = ColorFrame,
+                            Size = UDim2.new(0, 45, 0, 20),
+                            Position = UDim2.new(1, -12, 0.5, 0),
+                            AnchorPoint = Vector2.new(1, 0.5),
+                            BackgroundColor3 = ColorCfg.Default,
+                            BorderSizePixel = 0,
+                        })
+
+                        Framework:Create("UICorner", {
+                            Parent = ColorDisplay,
+                            CornerRadius = UDim.new(0, 3),
+                        })
+
+                        local ColorButton = Framework:Create("TextButton", {
+                            Parent = ColorDisplay,
+                            Size = UDim2.new(1, 0, 1, 0),
+                            BackgroundTransparency = 1,
+                            Text = "",
+                            ZIndex = 5,
+                        })
+
+                        local PickerWindow = Framework:Create("Frame", {
+                            Name = "ColorWidget",
+                            Parent = Framework.Items,
+                            Size = UDim2.new(0, 218, 0, 175),
+                            Position = UDim2.new(0, 0, 0, 0),
+                            BackgroundColor3 = Color3.fromRGB(24, 24, 30),
+                            BorderSizePixel = 0,
+                            Visible = false,
+                            ZIndex = 100,
+                        })
+
+                        Framework:Create("UICorner", {
+                            Parent = PickerWindow,
+                            CornerRadius = UDim.new(0, 3),
+                        })
+
+                        local Colorframe = Framework:Create("Frame", {
+                            Name = "Colorframe",
+                            Parent = PickerWindow,
+                            Position = UDim2.new(0, 11, 0, 13),
+                            Size = UDim2.new(0, 196, 0, 106),
+                            BackgroundColor3 = Color3.fromRGB(255, 255, 255),
+                            BorderSizePixel = 0,
+                        })
+
+                        Framework:Create("UICorner", {
+                            Parent = Colorframe,
+                            CornerRadius = UDim.new(0, 4),
+                        })
+
+                        local ColorframeGradient = Framework:Create("UIGradient", {
+                            Parent = Colorframe,
+                            Color = ColorSequence.new{
+                                ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 255, 255)),
+                                ColorSequenceKeypoint.new(1, Color3.fromHSV(h, 1, 1))
+                            },
+                        })
+
+                        local ValueOverlay = Framework:Create("ImageLabel", {
+                            Name = "Value",
+                            Parent = Colorframe,
+                            Size = UDim2.new(0, 196, 0, 106),
+                            Position = UDim2.new(0.5, 0, 0.5, 0),
+                            AnchorPoint = Vector2.new(0.5, 0.5),
+                            Image = "http://www.roblox.com/asset/?id=14684563800",
+                            BackgroundTransparency = 1,
+                            BorderSizePixel = 0,
+                            BackgroundColor3 = Color3.fromRGB(255, 255, 255),
+                        })
+
+                        Framework:Create("UICorner", {
+                            Parent = ValueOverlay,
+                            CornerRadius = UDim.new(0, 4),
+                        })
+
+                        local SatValPicker = Framework:Create("Frame", {
+                            Name = "Picker",
+                            Parent = Colorframe,
+                            Size = UDim2.new(0, 8, 0, 8),
+                            Position = UDim2.new(s, 0, 1 - v, 0),
+                            AnchorPoint = Vector2.new(0.5, 0.5),
+                            BackgroundTransparency = 1,
+                            BorderSizePixel = 0,
+                            ZIndex = 50,
+                        })
+
+                        Framework:Create("UIStroke", {
+                            Parent = SatValPicker,
+                            Color = Color3.fromRGB(255, 255, 255),
+                        })
+
+                        Framework:Create("UICorner", {
+                            Parent = SatValPicker,
+                            CornerRadius = UDim.new(0, 50),
+                        })
+
+                        local SatValButton = Framework:Create("TextButton", {
+                            Parent = Colorframe,
+                            Size = UDim2.new(1, 0, 1, 0),
+                            BackgroundTransparency = 1,
+                            Text = "",
+                            ZIndex = 51,
+                        })
+
+                        local HueBar = Framework:Create("ImageButton", {
+                            Name = "Hue",
+                            Parent = PickerWindow,
+                            Size = UDim2.new(0, 10, 0, 157),
+                            Position = UDim2.new(0.5802752375602722, 0, 1.0514285564422607, 34),
+                            AnchorPoint = Vector2.new(0.5, 1),
+                            Rotation = 90,
+                            Image = "http://www.roblox.com/asset/?id=14684557999",
+                            BackgroundColor3 = Color3.fromRGB(255, 255, 255),
+                            BorderSizePixel = 0,
+                        })
+
+                        Framework:Create("UICorner", {
+                            Parent = HueBar,
+                            CornerRadius = UDim.new(0, 30),
+                        })
+
+                        local HuePicker = Framework:Create("Frame", {
+                            Name = "Picker",
+                            Parent = HueBar,
+                            Size = UDim2.new(0, 12, 0, 12),
+                            Position = UDim2.new(0.5, 0, h, 0),
+                            AnchorPoint = Vector2.new(0.5, 0.5),
+                            BackgroundColor3 = Color3.fromRGB(255, 255, 255),
+                            BorderSizePixel = 0,
+                        })
+
+                        Framework:Create("UICorner", {
+                            Parent = HuePicker,
+                            CornerRadius = UDim.new(1, 100),
+                        })
+
+                        Framework:Create("UIStroke", {
+                            Parent = HuePicker,
+                            Color = Color3.fromRGB(255, 255, 255),
+                        })
+
+                        local AlphaBar = Framework:Create("Frame", {
+                            Name = "Alpha",
+                            Parent = PickerWindow,
+                            AnchorPoint = Vector2.new(0.5, 0),
+                            Position = UDim2.new(0.5825013518333435, 0, -0.17142857611179352, 181),
+                            Size = UDim2.new(0, 157, 0, 10),
+                            BackgroundColor3 = Color3.fromRGB(255, 255, 255),
+                            BorderSizePixel = 0,
+                        })
+
+                        Framework:Create("UICorner", {
+                            Parent = AlphaBar,
+                            CornerRadius = UDim.new(0, 30),
+                        })
+
+                        local AlphaGradient = Framework:Create("UIGradient", {
+                            Parent = AlphaBar,
+                            Color = ColorSequence.new{
+                                ColorSequenceKeypoint.new(0, Color3.fromRGB(0, 0, 0)),
+                                ColorSequenceKeypoint.new(1, Color3.fromHSV(h, s, v)),
+                            },
+                        })
+
+                        local AlphaPicker = Framework:Create("Frame", {
+                            Name = "Picker",
+                            Parent = AlphaBar,
+                            Size = UDim2.new(0, 12, 0, 12),
+                            Position = UDim2.new(a, 0, 0.5, 0),
+                            AnchorPoint = Vector2.new(1, 0.5),
+                            BackgroundColor3 = Color3.fromRGB(255, 255, 255),
+                            BorderSizePixel = 0,
+                        })
+
+                        Framework:Create("UICorner", {
+                            Parent = AlphaPicker,
+                            CornerRadius = UDim.new(1, 100),
+                        })
+
+                        Framework:Create("UIStroke", {
+                            Parent = AlphaPicker,
+                            Color = Color3.fromRGB(255, 255, 255),
+                        })
+
+                        local AlphaButton = Framework:Create("TextButton", {
+                            Parent = AlphaBar,
+                            Size = UDim2.new(1, 0, 1, 0),
+                            BackgroundTransparency = 1,
+                            Text = "",
+                            ZIndex = 102,
+                        })
+
+                        local PickerButton = Framework:Create("TextButton", {
+                            Name = "PickerButton",
+                            Parent = PickerWindow,
+                            AnchorPoint = Vector2.new(0, 1),
+                            Position = UDim2.new(0, 10, 1, -12),
+                            Size = UDim2.new(0, 28, 0, 28),
+                            BackgroundColor3 = Color3.fromRGB(16, 16, 20),
+                            BorderSizePixel = 0,
+                            Text = "",
+                            AutoButtonColor = false,
+                        })
+
+                        Framework:Create("UICorner", {
+                            Parent = PickerButton,
+                            CornerRadius = UDim.new(0, 3),
+                        })
+
+                        local PickerButtonIcon = Framework:Create("ImageLabel", {
+                            Name = "Icon",
+                            Parent = PickerButton,
+                            ImageColor3 = Color3.fromRGB(126, 125, 130),
+                            AnchorPoint = Vector2.new(0.5, 0.5),
+                            Image = "rbxassetid://140690366906069",
+                            BackgroundTransparency = 1,
+                            Position = UDim2.new(0.5, 0, 0.5, 0),
+                            Size = UDim2.new(0, 18, 0, 18),
+                            BorderSizePixel = 0,
+                            BackgroundColor3 = Color3.fromRGB(255, 255, 255),
+                        })
+
+                        local EyedropperActive = false
+
+                        PickerButton.MouseEnter:Connect(function()
+                            Animator:Create(PickerButtonIcon, TweenInfo.new(0.15, Enum.EasingStyle.Quad), {ImageColor3 = Color3.fromRGB(255, 255, 255)}):Play()
+                        end)
+
+                        PickerButton.MouseLeave:Connect(function()
+                            if not EyedropperActive then
+                                Animator:Create(PickerButtonIcon, TweenInfo.new(0.15, Enum.EasingStyle.Quad), {ImageColor3 = Color3.fromRGB(126, 125, 130)}):Play()
+                            end
+                        end)
+
+                        local SatValFrame = Colorframe
+
+                        local DraggingSat = false
+                        local DraggingHue = false
+                        local DraggingAlpha = false
+
+                        local function UpdateColor()
+                            local color = Color3.fromHSV(h, s, v)
+                            local hueColor = Color3.fromHSV(h, 1, 1)
+                            ColorDisplay.BackgroundColor3 = color
+                            ColorframeGradient.Color = ColorSequence.new{
+                                ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 255, 255)),
+                                ColorSequenceKeypoint.new(1, hueColor)
+                            }
+                            SatValPicker.Position = UDim2.new(s, 0, 1 - v, 0)
+                            HuePicker.Position = UDim2.new(0.5, 0, h, 0)
+                            AlphaPicker.Position = UDim2.new(a, 0, 0.5, 0)
+                            AlphaGradient.Color = ColorSequence.new{
+                                ColorSequenceKeypoint.new(0, Color3.fromRGB(0, 0, 0)),
+                                ColorSequenceKeypoint.new(1, color),
+                            }
+                            Flags[ColorCfg.Flag] = {Color = color, Alpha = a}
+                            ColorCfg.Callback(color, a)
+                        end
+
+                        local function SetColor(color, alpha)
+                            if color then
+                                h, s, v = color:ToHSV()
+                            end
+                            if alpha then
+                                a = alpha
+                            end
+                            UpdateColor()
+                        end
+
+                        PickerButton.MouseButton1Click:Connect(function()
+                            EyedropperActive = true
+                            PickerButtonIcon.ImageColor3 = Color3.fromRGB(255, 255, 255)
+                        end)
+
+                        UserInput.InputBegan:Connect(function(input)
+                            if EyedropperActive and input.UserInputType == Enum.UserInputType.MouseButton1 then
+                                EyedropperActive = false
+                                Animator:Create(PickerButtonIcon, TweenInfo.new(0.15, Enum.EasingStyle.Quad), {ImageColor3 = Color3.fromRGB(126, 125, 130)}):Play()
+                                local mousePos = input.Position
+                                local pickedColor = nil
+                                
+                                local guiObjects = PlayerService.LocalPlayer:GetGuiObjectsAtPosition(mousePos.X, mousePos.Y)
+                                for _, guiObj in ipairs(guiObjects) do
+                                    if guiObj ~= PickerButton and guiObj ~= PickerButtonIcon then
+                                        if guiObj:IsA("GuiObject") and guiObj.BackgroundTransparency < 1 then
+                                            pickedColor = guiObj.BackgroundColor3
+                                            break
+                                        elseif guiObj:IsA("ImageLabel") or guiObj:IsA("ImageButton") then
+                                            if guiObj.ImageTransparency < 1 then
+                                                pickedColor = guiObj.ImageColor3
+                                                break
+                                            end
+                                        end
+                                    end
+                                end
+                                
+                                if not pickedColor then
+                                    local camera = Workspace.CurrentCamera
+                                    local ray = camera:ViewportPointToRay(mousePos.X, mousePos.Y)
+                                    local raycastParams = RaycastParams.new()
+                                    raycastParams.FilterType = Enum.RaycastFilterType.Exclude
+                                    raycastParams.FilterDescendantsInstances = {}
+                                    local result = Workspace:Raycast(ray.Origin, ray.Direction * 1000, raycastParams)
+                                    if result and result.Instance then
+                                        local part = result.Instance
+                                        if part:IsA("BasePart") then
+                                            pickedColor = part.Color
+                                        end
+                                    end
+                                end
+                                
+                                if pickedColor then
+                                    SetColor(pickedColor, nil)
+                                end
+                            end
+                        end)
+
+                        SatValButton.MouseButton1Down:Connect(function()
+                            DraggingSat = true
+                        end)
+
+                        HueBar.MouseButton1Down:Connect(function()
+                            DraggingHue = true
+                        end)
+
+                        AlphaButton.MouseButton1Down:Connect(function()
+                            DraggingAlpha = true
+                        end)
+
+                        UserInput.InputEnded:Connect(function(input)
+                            if input.UserInputType == Enum.UserInputType.MouseButton1 then
+                                DraggingSat = false
+                                DraggingHue = false
+                                DraggingAlpha = false
+                            end
+                        end)
+
+                        UserInput.InputChanged:Connect(function(input)
+                            if input.UserInputType == Enum.UserInputType.MouseMovement then
+                                local mousePos = Vector2.new(input.Position.X, input.Position.Y)
+                                if DraggingSat then
+                                    s = math.clamp((mousePos.X - SatValFrame.AbsolutePosition.X) / SatValFrame.AbsoluteSize.X, 0, 1)
+                                    v = 1 - math.clamp((mousePos.Y - SatValFrame.AbsolutePosition.Y) / SatValFrame.AbsoluteSize.Y, 0, 1)
+                                    UpdateColor()
+                                elseif DraggingHue then
+                                    local hueAbsPos = HueBar.AbsolutePosition
+                                    local hueAbsSize = HueBar.AbsoluteSize
+                                    local centerX = hueAbsPos.X + hueAbsSize.X / 2
+                                    local halfWidth = hueAbsSize.Y / 2
+                                    h = math.clamp((mousePos.X - (centerX - halfWidth)) / hueAbsSize.Y, 0, 1)
+                                    UpdateColor()
+                                elseif DraggingAlpha then
+                                    a = math.clamp((mousePos.X - AlphaBar.AbsolutePosition.X) / AlphaBar.AbsoluteSize.X, 0, 1)
+                                    UpdateColor()
+                                end
+                            end
+                        end)
+
+                        ColorButton.MouseButton1Click:Connect(function()
+                            ColorCfg.Open = not ColorCfg.Open
+                            if ColorCfg.Open then
+                                PickerWindow.Position = UDim2.new(0, ColorDisplay.AbsolutePosition.X - 175, 0, ColorDisplay.AbsolutePosition.Y + 30)
+                                PickerWindow.Size = UDim2.new(0, 0, 0, 0)
+                                PickerWindow.BackgroundTransparency = 1
+                                PickerWindow.Visible = true
+                                
+                                Animator:Create(PickerWindow, TweenInfo.new(0.35, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+                                    Size = UDim2.new(0, 218, 0, 175),
+                                    BackgroundTransparency = 0
+                                }):Play()
+                            else
+                                Animator:Create(PickerWindow, TweenInfo.new(0.25, Enum.EasingStyle.Cubic, Enum.EasingDirection.In), {
+                                    Size = UDim2.new(0, 0, 0, 0),
+                                    BackgroundTransparency = 1
+                                }):Play()
+                                task.wait(0.25)
+                                if not ColorCfg.Open then
+                                    PickerWindow.Visible = false
+                                end
+                            end
+                        end)
+
+                        UserInput.InputBegan:Connect(function(input)
+                            if input.UserInputType == Enum.UserInputType.MouseButton1 and ColorCfg.Open then
+                                local mousePos = Vector2.new(input.Position.X, input.Position.Y)
+                                local windowPos = PickerWindow.AbsolutePosition
+                                local windowSize = PickerWindow.AbsoluteSize
+                                if mousePos.X < windowPos.X or mousePos.X > windowPos.X + windowSize.X or
+                                   mousePos.Y < windowPos.Y or mousePos.Y > windowPos.Y + windowSize.Y then
+                                    local displayPos = ColorDisplay.AbsolutePosition
+                                    local displaySize = ColorDisplay.AbsoluteSize
+                                    if mousePos.X < displayPos.X or mousePos.X > displayPos.X + displaySize.X or
+                                       mousePos.Y < displayPos.Y or mousePos.Y > displayPos.Y + displaySize.Y then
+                                        ColorCfg.Open = false
+                                        Animator:Create(PickerWindow, TweenInfo.new(0.25, Enum.EasingStyle.Cubic, Enum.EasingDirection.In), {
+                                            Size = UDim2.new(0, 0, 0, 0),
+                                            BackgroundTransparency = 1
+                                        }):Play()
+                                        task.wait(0.25)
+                                        if not ColorCfg.Open then
+                                            PickerWindow.Visible = false
+                                        end
+                                    end
+                                end
+                            end
+                        end)
+
+                        UpdateColor()
+
+                        ColorCfg.Set = SetColor
+                        return ColorCfg
+                    end
+
+                    function SectionCfg:Keybind(keybindOptions)
+                        local KeybindCfg = {
+                            Name = keybindOptions.Name or "Keybind",
+                            Flag = keybindOptions.Flag or keybindOptions.Name or "Keybind",
+                            Default = keybindOptions.Default or Enum.KeyCode.Unknown,
+                            Callback = keybindOptions.Callback or function() end,
+                            Key = keybindOptions.Default or Enum.KeyCode.Unknown,
+                            Listening = false,
+                        }
+
+                        Flags[KeybindCfg.Flag] = KeybindCfg.Key
+
+                        -- Get component count to calculate staggered delay
+                        local componentCount = 0
+                        for _, child in pairs(SectionHolder:GetChildren()) do
+                            if child:IsA("Frame") then
+                                componentCount = componentCount + 1
+                            end
+                        end
+                        
+                        local KeybindFrame = Framework:Create("Frame", {
+                            Name = "\0",
+                            Parent = SectionHolder,
+                            Size = UDim2.new(0, 284, 0, 40),
+                            Position = UDim2.new(0.5, 0, 0, 15),
+                            AnchorPoint = Vector2.new(0.5, 0),
+                            BackgroundColor3 = Color3.fromRGB(19, 18, 23),
+                            BorderSizePixel = 0,
+                            BackgroundTransparency = 1,
+                        })
+                        
+                        -- Animate component with staggered timing
+                        task.spawn(function()
+                            task.wait(0.08 * componentCount) -- Staggered delay based on component position
+                            Animator:Create(KeybindFrame, TweenInfo.new(0.4, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+                                Position = UDim2.new(0.5, 0, 0, 0),
+                                BackgroundTransparency = 0
+                            }):Play()
+                        end)
+
+                        Framework:Create("UICorner", {
+                            Parent = KeybindFrame,
+                            CornerRadius = UDim.new(0, 6),
+                        })
+
+                        Framework:Create("TextLabel", {
+                            Parent = KeybindFrame,
+                            Text = KeybindCfg.Name,
+                            FontFace = Font.new("rbxassetid://12187365364", Enum.FontWeight.Medium, Enum.FontStyle.Normal),
+                            TextColor3 = Color3.fromRGB(255, 255, 255),
+                            TextSize = 16,
+                            BackgroundTransparency = 1,
+                            Size = UDim2.new(0, 1, 0, 1),
+                            AutomaticSize = Enum.AutomaticSize.XY,
+                            Position = UDim2.new(0, 14, 0.5, 0),
+                            AnchorPoint = Vector2.new(0, 0.5),
+                        })
+
+                        local KeyLabel = Framework:Create("TextLabel", {
+                            Parent = KeybindFrame,
+                            Text = InputMap[KeybindCfg.Key] or (KeybindCfg.Key ~= Enum.KeyCode.Unknown and KeybindCfg.Key.Name or "None"),
+                            FontFace = Font.new("rbxassetid://12187365364", Enum.FontWeight.SemiBold, Enum.FontStyle.Normal),
+                            TextColor3 = Color3.fromRGB(255, 255, 255),
+                            TextSize = 14,
+                            BackgroundColor3 = Color3.fromRGB(24, 24, 29),
+                            Size = UDim2.new(0, 1, 0, 1),
+                            AutomaticSize = Enum.AutomaticSize.XY,
+                            Position = UDim2.new(1, -12, 0.5, 0),
+                            AnchorPoint = Vector2.new(1, 0.5),
+                        })
+
+                        Framework:Create("UIPadding", {
+                            Parent = KeyLabel,
+                            PaddingTop = UDim.new(0, 6),
+                            PaddingBottom = UDim.new(0, 6),
+                            PaddingRight = UDim.new(0, 8),
+                            PaddingLeft = UDim.new(0, 8),
+                        })
+
+                        Framework:Create("UICorner", {
+                            Parent = KeyLabel,
+                            CornerRadius = UDim.new(0, 4),
+                        })
+
+                        local KeyButton = Framework:Create("TextButton", {
+                            Parent = KeybindFrame,
+                            Size = UDim2.new(1, 0, 1, 0),
+                            BackgroundTransparency = 1,
+                            Text = "",
+                            ZIndex = 5,
+                        })
+
+                        local function UpdateKeybind(key)
+                            KeybindCfg.Key = key
+                            Flags[KeybindCfg.Flag] = key
+                            KeyLabel.Text = InputMap[key] or (key ~= Enum.KeyCode.Unknown and key.Name or "None")
+                        end
+
+                        KeyButton.MouseButton1Click:Connect(function()
+                            KeybindCfg.Listening = true
+                            KeyLabel.Text = "..."
+                        end)
+
+                        UserInput.InputBegan:Connect(function(input, gameProcessed)
+                            if KeybindCfg.Listening then
+                                if input.UserInputType == Enum.UserInputType.Keyboard then
+                                    if input.KeyCode == Enum.KeyCode.Escape then
+                                        UpdateKeybind(Enum.KeyCode.Unknown)
+                                    else
+                                        UpdateKeybind(input.KeyCode)
+                                    end
+                                    KeybindCfg.Listening = false
+                                elseif input.UserInputType == Enum.UserInputType.MouseButton1 or
+                                       input.UserInputType == Enum.UserInputType.MouseButton2 or
+                                       input.UserInputType == Enum.UserInputType.MouseButton3 then
+                                    UpdateKeybind(input.UserInputType)
+                                    KeybindCfg.Listening = false
+                                end
+                            else
+                                if input.KeyCode == KeybindCfg.Key or input.UserInputType == KeybindCfg.Key then
+                                    if not gameProcessed then
+                                        KeybindCfg.Callback(KeybindCfg.Key)
+                                    end
+                                end
+                            end
+                        end)
+
+                        UpdateKeybind(KeybindCfg.Default)
+
+                        KeybindCfg.Set = UpdateKeybind
+                        return KeybindCfg
+                    end
+
+                    return SectionCfg
+                end
+
+                return TabCfg
+            end
+            
+            Cfg.ToggleKey = Enum.KeyCode.Insert
+            Cfg.IsOpen = true
+
+            UserInput.InputBegan:Connect(function(input, gameProcessed)
+                if not gameProcessed and input.KeyCode == Cfg.ToggleKey then
+                    Cfg:Toggle()
+                end
+            end)
+
+            function Cfg:Show()
+                Framework.Items.Enabled = true
+                Cfg.IsOpen = true
+                Items.Window.Visible = true
+                Items.Window.Size = UDim2.new(0, 0, 0, 0)
+                Items.Window.Position = UDim2.new(0.5, 0, 0.5, 0)
+                Items.Window.BackgroundTransparency = 1
+                Animator:Create(Items.Window, TweenInfo.new(0.35, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+                    Size = Cfg.Size,
+                    Position = UDim2.new(0.5, -Cfg.Size.X.Offset / 2, 0.5, -Cfg.Size.Y.Offset / 2),
+                    BackgroundTransparency = 0
+                }):Play()
+            end
+
+            function Cfg:Hide()
+                Cfg.IsOpen = false
+                Animator:Create(Items.Window, TweenInfo.new(0.25, Enum.EasingStyle.Back, Enum.EasingDirection.In), {
+                    Size = UDim2.new(0, 0, 0, 0),
+                    Position = UDim2.new(0.5, 0, 0.5, 0),
+                    BackgroundTransparency = 1
+                }):Play()
+                task.delay(0.25, function()
+                    if not Cfg.IsOpen then
+                        Items.Window.Visible = false
+                    end
+                end)
+            end
+
+            function Cfg:Toggle()
+                if Cfg.IsOpen then
+                    Cfg:Hide()
+                else
+                    Cfg:Show()
+                end
+            end
+
+            function Cfg:SetToggleKey(key)
+                Cfg.ToggleKey = key
+            end
+
+            Cfg:Show()
+
+            return Cfg
+        end
+
+local Window = Framework:Window({Name = "ZZHub", Icon="rbxassetid://119538766819865"})
+local Tab = Window:Tab({Name = "Combat", TabIcon = "rbxassetid://122966298692553"})
+local Tab2 = Window:Tab({Name = "Movement", TabIcon = "rbxassetid://122966298692553"})
+
+local Section = Tab:Section({Name = "Aimbot", Side = "Left"})
+local Section2 = Tab:Section({Name = "Aimbot", Side = "Right"})
+local Section3 = Tab:Section({Name = "Aimbot", Side = "Left"})
+local Section4 = Tab:Section({Name = "Aimbot", Side = "Right"})
+
+
+Section:Toggle({Name = "Enabled", Default = false, Callback = function(v) end})
+Section:Slider({Name = "FOV", Min = 0, Max = 360, Default = 90, Callback = function(v) end})
+Section:Colorpicker({Name = "Color", Default = Color3.new(1,1,1), Callback = function(c,a) end})
+Section:Keybind({Name = "Toggle Key", Default = Enum.KeyCode.X, Callback = function(k) end})
+
+Section2:Toggle({Name = "Enabled", Default = false, Callback = function(v) end})
+Section2:Slider({Name = "FOV", Min = 0, Max = 360, Default = 90, Callback = function(v) end})
+Section2:Colorpicker({Name = "Color", Default = Color3.new(1,1,1), Callback = function(c,a) end})
+Section2:Keybind({Name = "Toggle Key", Default = Enum.KeyCode.X, Callback = function(k) end})
+
+
+Section3:Toggle({Name = "Enabled", Default = false, Callback = function(v) end})
+Section3:Slider({Name = "FOV", Min = 0, Max = 360, Default = 90, Callback = function(v) end})
+Section3:Colorpicker({Name = "Color", Default = Color3.new(1,1,1), Callback = function(c,a) end})
+Section3:Keybind({Name = "Toggle Key", Default = Enum.KeyCode.X, Callback = function(k) end})
+
+Section4:Toggle({Name = "Enabled", Default = false, Callback = function(v) end})
+Section4:Slider({Name = "FOV", Min = 0, Max = 360, Default = 90, Callback = function(v) end})
+Section4:Colorpicker({Name = "Color", Default = Color3.new(1,1,1), Callback = function(c,a) end})
+Section4:Keybind({Name = "Toggle Key", Default = Enum.KeyCode.X, Callback = function(k) end})
+Section4:Keybind({Name = "Toggle Key", Default = Enum.KeyCode.X, Callback = function(k) end})
+Section4:Keybind({Name = "Toggle Key", Default = Enum.KeyCode.X, Callback = function(k) end})
+Section4:Keybind({Name = "Toggle Key", Default = Enum.KeyCode.X, Callback = function(k) end})
