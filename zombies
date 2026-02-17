@@ -1,0 +1,1395 @@
+local repo = "https://raw.githubusercontent.com/deividcomsono/Obsidian/main/"
+local Library = loadstring(game:HttpGet(repo .. "Library.lua"))()
+local ThemeManager = loadstring(game:HttpGet(repo .. "addons/ThemeManager.lua"))()
+local SaveManager = loadstring(game:HttpGet(repo .. "addons/SaveManager.lua"))()
+local Options = Library.Options
+local Toggles = Library.Toggles
+
+local players = game:GetService("Players")
+local run_service = game:GetService("RunService")
+local workspace = game:GetService("Workspace")
+local local_player = players.LocalPlayer
+local camera = workspace.CurrentCamera
+local core_gui = game:GetService("CoreGui")
+
+-- Set FPS cap to 999
+setfpscap(999)
+
+local Config = {
+    BoxESP = {
+        Enabled = false,
+        Color = Color3.fromRGB(255, 255, 255),
+        Thickness = 1,
+        MaxDistance = 100,
+    },
+    SkeletonESP = {
+        Enabled = false,
+        Color = Color3.fromRGB(255, 255, 255),
+        Thickness = 1,
+        MaxDistance = 100,
+    },
+    Aimbot = {
+        Enabled = false,
+        FOV = 200,
+        ShowFOV = false,
+        FOVColor = Color3.fromRGB(255, 255, 255),
+        Smoothness = 1,
+        HitPart = "Head",
+    },
+    HitboxExpander = {
+        Enabled = false,
+        Size = 3,
+    },
+    KillAll = {
+        Enabled = false,
+        X = 0.6,
+        Y = -0.1,
+        Z = -10,
+    },
+    ZombieCount = {
+        Enabled = false,
+    },
+    HatESP = {
+        Enabled = false,
+        Color = Color3.fromRGB(255, 255, 255),
+    },
+    Chams = {
+        Enabled = false,
+        Color = Color3.fromRGB(255, 0, 0),
+        GlowColor = Color3.fromRGB(255, 255, 255),
+    },
+    NaziCursor = {
+        Enabled = false,
+        Size = 5,
+        Speed = 1.2,
+        Thickness = 1,
+    },
+    WorldLighting = {
+        CustomFog = false,
+        FogColor = Color3.fromRGB(255, 255, 255),
+        Ambience = false,
+        AmbienceColor = Color3.fromRGB(255, 255, 255),
+        Exposure = 1,
+    },
+}
+
+local active_esp = {}
+local fov_circle
+local fov_outline
+local aimbot_target
+local zombie_count_label
+local cursor_connection
+local cursor_drawings = {}
+
+local function create_instance(class, properties)
+    local inst = typeof(class) == "string" and Instance.new(class) or class
+    for property, val in pairs(properties) do
+        inst[property] = val
+    end
+    return inst
+end
+
+local function custom_bounds(model)
+    local vertices = {
+        {-0.5, -0.5, -0.5}, {-0.5, 0.5, -0.5}, {0.5, -0.5, -0.5}, {0.5, 0.5, -0.5},
+        {-0.5, -0.5, 0.5}, {-0.5, 0.5, 0.5}, {0.5, -0.5, 0.5}, {0.5, 0.5, 0.5},
+    }
+    local min_bound = Vector3.new(math.huge, math.huge, math.huge)
+    local max_bound = Vector3.new(-math.huge, -math.huge, -math.huge)
+    local min_width = 2.5
+    
+    for _, part in pairs(model:GetDescendants()) do
+        if part:IsA("BasePart") then
+            local cframe, size = part.CFrame, part.Size
+            for _, v in pairs(vertices) do
+                local world_space = cframe:PointToWorldSpace(Vector3.new(v[1] * size.X, (v[2] + 0.2) * (size.Y + 0.2), v[3] * size.Z))
+                min_bound = Vector3.new(
+                    math.min(min_bound.X, world_space.X),
+                    math.min(min_bound.Y, world_space.Y),
+                    math.min(min_bound.Z, world_space.Z)
+                )
+                max_bound = Vector3.new(
+                    math.max(max_bound.X, world_space.X),
+                    math.max(max_bound.Y, world_space.Y),
+                    math.max(max_bound.Z, world_space.Z)
+                )
+            end
+        end
+    end
+    
+    if min_bound == Vector3.new(math.huge, math.huge, math.huge) then
+        return
+    end
+    
+    local size = max_bound - min_bound
+    size = Vector3.new(math.max(size.X, min_width), size.Y, size.Z)
+    local center = (min_bound + max_bound) / 2
+    return CFrame.new(center), size, center
+end
+
+local part_points = {
+    torso = {"UpperTorso", "LowerTorso"},
+    larm = {"LeftUpperArm", "LeftLowerArm", "LeftHand"},
+    rarm = {"RightUpperArm", "RightLowerArm", "RightHand"},
+    lleg = {"LeftUpperLeg", "LeftLowerLeg", "LeftFoot"},
+    rleg = {"RightUpperLeg", "RightLowerLeg", "RightFoot"},
+    head = "Head",
+}
+
+local function vector3_to_vector2(vector)
+    return Vector2.new(vector.X, vector.Y)
+end
+
+local function draw_line(frame, from, to)
+    local netVector = to - from
+    local length = math.sqrt(netVector.X ^ 2 + netVector.Y ^ 2)
+    local midpoint = Vector2.new((from.X + to.X) / 2, (from.Y + to.Y) / 2)
+    local theta = math.deg(math.atan2(from.Y - to.Y, from.X - to.X))
+    
+    frame.AnchorPoint = Vector2.new(0.5, 0.5)
+    frame.Position = UDim2.fromOffset(midpoint.X, midpoint.Y)
+    frame.Rotation = theta
+    frame.Size = UDim2.new(0, length, 0, Config.SkeletonESP.Thickness)
+end
+
+local function get_closest_zombie()
+    local closest_zombie = nil
+    local shortest_distance = Config.Aimbot.FOV
+    local viewport_size = camera.ViewportSize
+    local screen_center = Vector2.new(viewport_size.X / 2, viewport_size.Y / 2)
+    
+    for zombie, data in pairs(active_esp) do
+        if zombie and zombie.Parent then
+            local target_part = zombie:FindFirstChild(Config.Aimbot.HitPart)
+            if target_part then
+                local screen_pos, on_screen = camera:WorldToViewportPoint(target_part.Position)
+                if on_screen then
+                    local distance = (Vector2.new(screen_pos.X, screen_pos.Y) - screen_center).Magnitude
+                    if distance < shortest_distance then
+                        shortest_distance = distance
+                        closest_zombie = zombie
+                    end
+                end
+            end
+        end
+    end
+    
+    return closest_zombie
+end
+
+local function create_hat(character)
+    if not Config.HatESP.Enabled then return end
+    if character:FindFirstChild("PointyHat") then return end
+    
+    local head = character:FindFirstChild("Head")
+    if not head then return end
+    
+    local hat = Instance.new("Part")
+    hat.Name = "PointyHat"
+    hat.Size = Vector3.new(1, 1, 1)
+    hat.Color = Config.HatESP.Color
+    hat.Transparency = 0
+    hat.Anchored = false
+    hat.CanCollide = false
+    
+    local mesh = Instance.new("SpecialMesh", hat)
+    mesh.MeshType = Enum.MeshType.FileMesh
+    mesh.MeshId = "rbxassetid://1033714"
+    mesh.Scale = Vector3.new(0.7, 3.2, 0.7)
+    
+    local weld = Instance.new("Weld")
+    weld.Part0 = head
+    weld.Part1 = hat
+    weld.C0 = CFrame.new(0, 1.8, 0)
+    
+    hat.Parent = character
+    weld.Parent = hat
+end
+
+local function remove_adorns(part)
+    if not part then return end
+    local children = part:GetChildren()
+    for i = 1, #children do
+        local obj = children[i]
+        if obj.Name == "Chams" or obj.Name == "Glow" then
+            obj:Destroy()
+        end
+    end
+end
+
+local function create_adornment(part, adorn_type, color, trans, z_index, size_offset, extra)
+    extra = extra or {}
+    local ad
+    
+    if adorn_type == "Cylinder" then
+        ad = Instance.new("CylinderHandleAdornment")
+        ad.Height = part.Size.Y + (extra.HeightOffset or 0)
+        ad.Radius = (part.Size.X * 0.5) + (extra.RadiusOffset or 0)
+        ad.CFrame = CFrame.new(Vector3.new(), Vector3.new(0, 1, 0))
+    elseif adorn_type == "Box" then
+        ad = Instance.new("BoxHandleAdornment")
+        ad.Size = part.Size + (size_offset or Vector3.new(0, 0, 0))
+    end
+    
+    ad.Name = "Chams"
+    ad.AlwaysOnTop = true
+    ad.ZIndex = z_index
+    ad.Adornee = part
+    ad.Color3 = color
+    ad.Transparency = trans or 0
+    
+    if extra.Shading then
+        ad.Shading = extra.Shading
+    end
+    
+    ad.Parent = part
+    return ad
+end
+
+local function update_chams()
+    run_service.RenderStepped:Connect(function()
+        if Config.Chams.Enabled then
+            for zombie, data in pairs(active_esp) do
+                if zombie and zombie.Parent then
+                    for _, part in pairs(zombie:GetChildren()) do
+                        if part:IsA("BasePart") and part.Transparency < 1 then
+                            local existing_chams = part:FindFirstChild("Chams")
+                            if existing_chams then
+                                for _, child in pairs(part:GetChildren()) do
+                                    if child.Name == "Chams" then
+                                        if child.ZIndex == 10 then
+                                            child.Color3 = Config.Chams.Color
+                                        else
+                                            local glow_color = Config.Chams.GlowColor
+                                            child.Color3 = Color3.new(glow_color.R * 5, glow_color.G * 5, glow_color.B * 5)
+                                        end
+                                    end
+                                end
+                            else
+                                local is_head = part.Name == "Head"
+                                local glow_color = Config.Chams.GlowColor
+                                
+                                create_adornment(
+                                    part,
+                                    is_head and "Cylinder" or "Box",
+                                    Color3.new(glow_color.R * 5, glow_color.G * 5, glow_color.B * 5),
+                                    -1,
+                                    is_head and 10 or 9,
+                                    Vector3.new(0.03, 0.03, 0.03),
+                                    { Shading = Enum.AdornShading.XRayShaded }
+                                )
+                                
+                                create_adornment(
+                                    part,
+                                    is_head and "Cylinder" or "Box",
+                                    Config.Chams.Color,
+                                    0.5,
+                                    10,
+                                    Vector3.new(0.02, 0.02, 0.02)
+                                )
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end)
+end
+
+local function ESP(model)
+    if active_esp[model] then
+        return
+    end
+    
+    local esp_connection
+    local esp_holder = create_instance("ScreenGui", {
+        Parent = core_gui,
+        Name = "ESP_Holder_" .. model.Name,
+        ResetOnSpawn = false,
+    })
+    
+    local drawings = {
+        Box = create_instance("Frame", {
+            Parent = esp_holder,
+            BackgroundTransparency = 1,
+            BackgroundColor3 = Color3.new(1, 1, 1),
+            ZIndex = -999
+        }),
+        Box2 = create_instance("Frame", {
+            Parent = esp_holder,
+            BackgroundTransparency = 1,
+            BackgroundColor3 = Color3.new(1, 1, 1),
+            ZIndex = 999
+        }),
+        Outline = create_instance("UIStroke", {
+            Color = Color3.fromRGB(0, 0, 0),
+            Thickness = 3,
+            Transparency = 0,
+            LineJoinMode = Enum.LineJoinMode.Miter,
+            Enabled = true,
+        }),
+        Outline2 = create_instance("UIStroke", {
+            Thickness = 1,
+            Enabled = true,
+            LineJoinMode = Enum.LineJoinMode.Miter
+        }),
+        skeleton = create_instance("Frame", {
+            Parent = esp_holder,
+            Size = UDim2.new(1, 0, 1, 0),
+            BackgroundTransparency = 1,
+        }),
+    }
+    
+    drawings.Outline.Parent = drawings.Box
+    drawings.Outline2.Parent = drawings.Box2
+    
+    local skeleton_bones = {
+        "head", "torso1", "torso2", "larm1", "larm2", "larm3", 
+        "rarm1", "rarm2", "rarm3", "lleg1", "lleg2", "lleg3",
+        "rleg1", "rleg2", "rleg3"
+    }
+    for _, bone_name in pairs(skeleton_bones) do
+        create_instance("Frame", {
+            Parent = drawings.skeleton,
+            Name = bone_name,
+            BorderSizePixel = 0,
+        })
+    end
+    
+    -- Cache frequently accessed parts and values
+    local humanoid = model:FindFirstChildOfClass("Humanoid")
+    local root_part = model:FindFirstChild("HumanoidRootPart")
+    local cached_parts = {}
+    local parts_valid = false
+    
+    local function cache_parts()
+        if parts_valid then return true end
+        
+        cached_parts = {}
+        for part_name, part_data in pairs(part_points) do
+            if type(part_data) == "table" then
+                for _, point in pairs(part_data) do
+                    local part = model:FindFirstChild(point)
+                    if not part then
+                        return false
+                    end
+                    cached_parts[point] = part
+                end
+            elseif type(part_data) == "string" then
+                local part = model:FindFirstChild(part_data)
+                if not part then
+                    return false
+                end
+                cached_parts[part_data] = part
+            end
+        end
+        parts_valid = true
+        return true
+    end
+    
+    local function hide_esp()
+        drawings.Box.Visible = false
+        drawings.Box2.Visible = false
+        drawings.skeleton.Visible = false
+    end
+    
+    local function clear_esp()
+        for _, v in pairs(drawings) do
+            if v then
+                v:Destroy()
+            end
+        end
+        if esp_connection then
+            esp_connection:Disconnect()
+        end
+        esp_holder:Destroy()
+        active_esp[model] = nil
+    end
+    
+    model.Destroying:Connect(clear_esp)
+    
+    -- Dynamic update rate based on distance
+    local last_update = 0
+    local frame_skip = 0
+    local update_rate = 1
+    
+    esp_connection = run_service.RenderStepped:Connect(function()
+        -- Frame skipping for performance
+        frame_skip = frame_skip + 1
+        if frame_skip < update_rate then
+            return
+        end
+        frame_skip = 0
+        
+        if not model or not model.Parent then
+            hide_esp()
+            return
+        end
+        
+        if humanoid and humanoid.Health <= 0 then
+            hide_esp()
+            return
+        end
+        
+        -- Skip if no ESP features are enabled
+        if not Config.BoxESP.Enabled and not Config.SkeletonESP.Enabled then
+            hide_esp()
+            return
+        end
+        
+        -- Early distance check using root part
+        if not root_part or not root_part.Parent then
+            root_part = model:FindFirstChild("HumanoidRootPart")
+            if not root_part then
+                hide_esp()
+                return
+            end
+        end
+        
+        local player_char = local_player.Character
+        if not player_char then
+            hide_esp()
+            return
+        end
+        
+        local player_root = player_char:FindFirstChild("HumanoidRootPart")
+        if not player_root then
+            hide_esp()
+            return
+        end
+        
+        local distance = (root_part.Position - player_root.Position).Magnitude
+        
+        -- Distance-based culling
+        if Config.BoxESP.Enabled and distance > Config.BoxESP.MaxDistance then
+            drawings.Box.Visible = false
+            drawings.Box2.Visible = false
+        end
+        
+        if Config.SkeletonESP.Enabled and distance > Config.SkeletonESP.MaxDistance then
+            drawings.skeleton.Visible = false
+        end
+        
+        if distance > math.max(Config.BoxESP.MaxDistance, Config.SkeletonESP.MaxDistance) then
+            return
+        end
+        
+        -- Dynamic update rate based on distance
+        if distance > 200 then
+            update_rate = 3
+        elseif distance > 100 then
+            update_rate = 2
+        else
+            update_rate = 1
+        end
+        
+        local _, size, position = custom_bounds(model)
+        if not position then
+            hide_esp()
+            return
+        end
+        
+        local pos, on_screen = camera:WorldToScreenPoint(position)
+        if not on_screen then
+            hide_esp()
+            return
+        end
+        
+        -- Frustum culling - check if behind camera
+        if pos.Z < 0 then
+            hide_esp()
+            return
+        end
+        
+        local viewport_size = camera.ViewportSize
+        local height = math.tan(math.rad(camera.FieldOfView / 2)) * 2 * pos.Z
+        local scale = Vector2.new((viewport_size.Y / height) * size.X, (viewport_size.Y / height) * size.Y)
+        
+        -- Box ESP
+        if Config.BoxESP.Enabled and distance <= Config.BoxESP.MaxDistance then
+            local half_scale_x = scale.X * 0.5
+            local half_scale_y = scale.Y * 0.5
+            
+            drawings.Box.Size = UDim2.new(0, scale.X - 1, 0, scale.Y - 1)
+            drawings.Box2.Size = UDim2.new(0, scale.X + 1, 0, scale.Y + 1)
+            drawings.Box.Position = UDim2.new(0, pos.X - half_scale_x, 0, pos.Y - half_scale_y)
+            drawings.Box2.Position = UDim2.new(0, pos.X - half_scale_x - 1, 0, pos.Y - half_scale_y - 1)
+            drawings.Box.Visible = true
+            drawings.Box2.Visible = true
+            drawings.Outline2.Color = Config.BoxESP.Color
+        else
+            drawings.Box.Visible = false
+            drawings.Box2.Visible = false
+        end
+        
+        -- Skeleton ESP
+        if Config.SkeletonESP.Enabled and distance <= Config.SkeletonESP.MaxDistance then
+            if not parts_valid then
+                if not cache_parts() then
+                    drawings.skeleton.Visible = false
+                    return
+                end
+            end
+            
+            -- Batch WorldToScreenPoint calls
+            local screen_positions = {}
+            local all_on_screen = true
+            
+            for part_name, part in pairs(cached_parts) do
+                if not part or not part.Parent then
+                    parts_valid = false
+                    drawings.skeleton.Visible = false
+                    return
+                end
+                local screen_pos, is_on_screen = camera:WorldToScreenPoint(part.Position)
+                if not is_on_screen then
+                    all_on_screen = false
+                    break
+                end
+                screen_positions[part_name] = Vector2.new(screen_pos.X, screen_pos.Y)
+            end
+            
+            if all_on_screen then
+                local points = {
+                    torso = {
+                        screen_positions[part_points.torso[1]],
+                        screen_positions[part_points.torso[2]],
+                    },
+                    larm = {
+                        screen_positions[part_points.larm[1]],
+                        screen_positions[part_points.larm[2]],
+                        screen_positions[part_points.larm[3]],
+                    },
+                    rarm = {
+                        screen_positions[part_points.rarm[1]],
+                        screen_positions[part_points.rarm[2]],
+                        screen_positions[part_points.rarm[3]],
+                    },
+                    lleg = {
+                        screen_positions[part_points.lleg[1]],
+                        screen_positions[part_points.lleg[2]],
+                        screen_positions[part_points.lleg[3]],
+                    },
+                    rleg = {
+                        screen_positions[part_points.rleg[1]],
+                        screen_positions[part_points.rleg[2]],
+                        screen_positions[part_points.rleg[3]],
+                    },
+                    head = screen_positions[part_points.head],
+                }
+                
+                drawings.skeleton.Visible = true
+                local skeleton_color = Config.SkeletonESP.Color
+                
+                -- Batch color updates
+                for _, bone in pairs(drawings.skeleton:GetChildren()) do
+                    bone.BackgroundColor3 = skeleton_color
+                end
+                
+                -- Draw all lines
+                draw_line(drawings.skeleton.head, points.head, points.torso[1])
+                draw_line(drawings.skeleton.torso1, points.torso[1], points.torso[2])
+                draw_line(drawings.skeleton.larm1, points.torso[1], points.larm[1])
+                draw_line(drawings.skeleton.larm2, points.larm[1], points.larm[2])
+                draw_line(drawings.skeleton.larm3, points.larm[2], points.larm[3])
+                draw_line(drawings.skeleton.rarm1, points.torso[1], points.rarm[1])
+                draw_line(drawings.skeleton.rarm2, points.rarm[1], points.rarm[2])
+                draw_line(drawings.skeleton.rarm3, points.rarm[2], points.rarm[3])
+                draw_line(drawings.skeleton.lleg1, points.torso[2], points.lleg[1])
+                draw_line(drawings.skeleton.lleg2, points.lleg[1], points.lleg[2])
+                draw_line(drawings.skeleton.lleg3, points.lleg[2], points.lleg[3])
+                draw_line(drawings.skeleton.rleg1, points.torso[2], points.rleg[1])
+                draw_line(drawings.skeleton.rleg2, points.rleg[1], points.rleg[2])
+                draw_line(drawings.skeleton.rleg3, points.rleg[2], points.rleg[3])
+            else
+                drawings.skeleton.Visible = false
+            end
+        else
+            drawings.skeleton.Visible = false
+        end
+    end)
+    
+    active_esp[model] = {holder = esp_holder, connection = esp_connection, clear = clear_esp}
+end
+
+local function create_fov_circle()
+    local fov_gui = create_instance("ScreenGui", {
+        Parent = core_gui,
+        Name = "FOV_Circle",
+        ResetOnSpawn = false,
+    })
+    
+    fov_outline = create_instance("Frame", {
+        Parent = fov_gui,
+        Size = UDim2.new(0, Config.Aimbot.FOV * 2, 0, Config.Aimbot.FOV * 2),
+        BackgroundTransparency = 1,
+        BorderSizePixel = 0,
+        AnchorPoint = Vector2.new(0.5, 0.5),
+    })
+    
+    create_instance("UICorner", {
+        Parent = fov_outline,
+        CornerRadius = UDim.new(1, 0),
+    })
+    
+    create_instance("UIStroke", {
+        Parent = fov_outline,
+        Color = Color3.fromRGB(0, 0, 0),
+        Thickness = 2,
+        Transparency = 0,
+    })
+    
+    fov_circle = create_instance("Frame", {
+        Parent = fov_gui,
+        Size = UDim2.new(0, Config.Aimbot.FOV * 2, 0, Config.Aimbot.FOV * 2),
+        BackgroundTransparency = 1,
+        BorderSizePixel = 0,
+        AnchorPoint = Vector2.new(0.5, 0.5),
+    })
+    
+    create_instance("UICorner", {
+        Parent = fov_circle,
+        CornerRadius = UDim.new(1, 0),
+    })
+    
+    create_instance("UIStroke", {
+        Parent = fov_circle,
+        Color = Config.Aimbot.FOVColor,
+        Thickness = 1,
+        Transparency = 0,
+    })
+    
+    run_service.RenderStepped:Connect(function()
+        if Config.Aimbot.ShowFOV then
+            local viewport_size = camera.ViewportSize
+            local center_x = viewport_size.X / 2
+            local center_y = viewport_size.Y / 2
+            fov_circle.Position = UDim2.fromOffset(center_x, center_y)
+            fov_outline.Position = UDim2.fromOffset(center_x, center_y)
+            fov_circle.Size = UDim2.new(0, Config.Aimbot.FOV * 2, 0, Config.Aimbot.FOV * 2)
+            fov_outline.Size = UDim2.new(0, Config.Aimbot.FOV * 2, 0, Config.Aimbot.FOV * 2)
+            fov_circle.UIStroke.Color = Config.Aimbot.FOVColor
+            fov_circle.Visible = true
+            fov_outline.Visible = true
+        else
+            fov_circle.Visible = false
+            fov_outline.Visible = false
+        end
+    end)
+end
+
+local function setup_nazi_cursor()
+    local UserInputService = game:GetService("UserInputService")
+    local GuiService = game:GetService("GuiService")
+    local GuiInset = GuiService:GetGuiInset()
+    
+    local function new_drawing(obj, props)
+        local d = Drawing.new(obj)
+        for k, v in pairs(props) do
+            d[k] = v
+        end
+        return d
+    end
+    
+    local centerDot = new_drawing("Circle", {
+        Visible = false,
+        Radius = 2,
+        Color = Color3.new(1, 1, 1),
+        Filled = true,
+        ZIndex = 2,
+        Transparency = 1,
+    })
+    
+    local arms = {}
+    for i = 1, 4 do
+        local outline = new_drawing("Line", {
+            Visible = false,
+            From = Vector2.new(0, 0),
+            To = Vector2.new(0, 0),
+            Color = Color3.new(0, 0, 0),
+            Thickness = 3.5,
+            ZIndex = 1,
+            Transparency = 1,
+        })
+        local main = new_drawing("Line", {
+            Visible = false,
+            From = Vector2.new(0, 0),
+            To = Vector2.new(0, 0),
+            Color = Color3.new(1, 1, 1),
+            Thickness = 1,
+            ZIndex = 2,
+            Transparency = 1,
+        })
+        local seg = new_drawing("Line", {
+            Visible = false,
+            From = Vector2.new(0, 0),
+            To = Vector2.new(0, 0),
+            Color = Color3.new(1, 1, 1),
+            Thickness = 1,
+            ZIndex = 2,
+            Transparency = 1,
+        })
+        arms[i] = {main = main, outline = outline, seg = seg}
+        table.insert(cursor_drawings, outline)
+        table.insert(cursor_drawings, main)
+        table.insert(cursor_drawings, seg)
+    end
+    
+    table.insert(cursor_drawings, centerDot)
+    
+    local hue = 0
+    local rotation = 0
+    
+    cursor_connection = run_service.RenderStepped:Connect(function(dt)
+        if not Config.NaziCursor.Enabled then
+            centerDot.Visible = false
+            for i = 1, 4 do
+                arms[i].main.Visible = false
+                arms[i].outline.Visible = false
+                arms[i].seg.Visible = false
+            end
+            return
+        end
+        
+        local mouse_pos = UserInputService:GetMouseLocation()
+        local pos = Vector2.new(mouse_pos.X, mouse_pos.Y)
+        
+        hue = hue + (dt * 0.5)
+        if hue > 1 then hue = 0 end
+        local color = Color3.fromHSV(hue, 1, 1)
+        
+        centerDot.Visible = true
+        centerDot.Color = color
+        centerDot.Position = pos
+        
+        rotation = rotation - (Config.NaziCursor.Speed * dt * 250)
+        if rotation >= 90 then rotation = rotation - 90 end
+        if rotation < 0 then rotation = rotation + 90 end
+        
+        local radius = Config.NaziCursor.Size * 5
+        local a = math.max(radius - 10, 0)
+        local gamma = math.atan(a == 0 and 0 or (a / a))
+        
+        for i = 1, 4 do
+            local baseAngle = rotation + (i * 90)
+            local rad_angle = math.rad(baseAngle)
+            
+            local p0x = a * math.sin(rad_angle)
+            local p0y = a * math.cos(rad_angle)
+            local p2x = (a / math.cos(gamma)) * math.sin(rad_angle + gamma)
+            local p2y = (a / math.cos(gamma)) * math.cos(rad_angle + gamma)
+            
+            local mainFrom = pos
+            local mainTo = Vector2.new(pos.X + p0x, pos.Y - p0y)
+            local segFrom = mainTo
+            local segTo = Vector2.new(pos.X + p2x, pos.Y - p2y)
+            
+            local arm = arms[i]
+            
+            arm.main.Visible = true
+            arm.main.Color = color
+            arm.main.Thickness = Config.NaziCursor.Thickness
+            arm.main.From = mainFrom
+            arm.main.To = mainTo
+            
+            arm.outline.Visible = true
+            arm.outline.Thickness = Config.NaziCursor.Thickness + 2.5
+            arm.outline.From = mainFrom
+            arm.outline.To = mainTo
+            
+            arm.seg.Visible = true
+            arm.seg.Color = color
+            arm.seg.Thickness = Config.NaziCursor.Thickness
+            arm.seg.From = segFrom
+            arm.seg.To = segTo
+        end
+    end)
+end
+
+local function setup_aimbot()
+    run_service.RenderStepped:Connect(function()
+        if Config.Aimbot.Enabled and Options.AimbotKey and Options.AimbotKey:GetState() then
+            aimbot_target = get_closest_zombie()
+            if aimbot_target then
+                local target_part = aimbot_target:FindFirstChild(Config.Aimbot.HitPart)
+                if target_part then
+                    local target_pos = target_part.Position
+                    local current_cam = camera.CFrame
+                    local target_cam = CFrame.new(current_cam.Position, target_pos)
+                    camera.CFrame = current_cam:Lerp(target_cam, 1 / Config.Aimbot.Smoothness)
+                end
+            end
+        end
+    end)
+end
+
+local function setup_zombie_monitoring()
+    local zombies_folder = workspace:WaitForChild("Zombies")
+    
+    for _, zombie in pairs(zombies_folder:GetChildren()) do
+        if zombie:IsA("Model") then
+            task.spawn(ESP, zombie)
+            if Config.HatESP.Enabled then
+                task.spawn(create_hat, zombie)
+            end
+        end
+    end
+    
+    zombies_folder.ChildAdded:Connect(function(zombie)
+        if zombie:IsA("Model") then
+            task.wait(0.1)
+            task.spawn(ESP, zombie)
+            if Config.HatESP.Enabled then
+                task.spawn(create_hat, zombie)
+            end
+        end
+    end)
+    
+    zombies_folder.ChildRemoved:Connect(function(zombie)
+        if active_esp[zombie] then
+            active_esp[zombie].clear()
+        end
+    end)
+end
+
+local function update_hitboxes()
+    run_service.RenderStepped:Connect(function()
+        if Config.HitboxExpander.Enabled then
+            for zombie, data in pairs(active_esp) do
+                if zombie and zombie.Parent then
+                    local head = zombie:FindFirstChild("Head")
+                    if head and head:IsA("BasePart") then
+                        head.Size = Vector3.new(Config.HitboxExpander.Size, Config.HitboxExpander.Size, Config.HitboxExpander.Size)
+                        head.Transparency = 1
+                        head.CanCollide = false
+                    end
+                end
+            end
+        end
+        
+        if Config.KillAll.Enabled then
+            for zombie, data in pairs(active_esp) do
+                if zombie and zombie.Parent then
+                    local hrp = zombie:FindFirstChild("HumanoidRootPart")
+                    if hrp and hrp:IsA("BasePart") then
+                        local player_hrp = local_player.Character and local_player.Character:FindFirstChild("HumanoidRootPart")
+                        if player_hrp then
+                            hrp.CFrame = player_hrp.CFrame * CFrame.new(Config.KillAll.X, Config.KillAll.Y, Config.KillAll.Z)
+                        end
+                    end
+                end
+            end
+        end
+    end)
+end
+
+local function create_zombie_counter()
+    local counter_gui = create_instance("ScreenGui", {
+        Parent = core_gui,
+        Name = "ZombieCounter",
+        ResetOnSpawn = false,
+    })
+    
+    zombie_count_label = create_instance("TextLabel", {
+        Parent = counter_gui,
+        Size = UDim2.new(0, 150, 0, 40),
+        Position = UDim2.new(1, -160, 0, 10),
+        BackgroundColor3 = Color3.fromRGB(25, 25, 25),
+        BackgroundTransparency = 0.3,
+        BorderSizePixel = 0,
+        Text = "Zombies: 0",
+        TextColor3 = Color3.fromRGB(255, 255, 255),
+        TextSize = 18,
+        Font = Enum.Font.GothamBold,
+        Visible = false,
+    })
+    
+    create_instance("UICorner", {
+        Parent = zombie_count_label,
+        CornerRadius = UDim.new(0, 8),
+    })
+    
+    local dragging, drag_input, drag_start, start_pos
+    
+    zombie_count_label.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            dragging = true
+            drag_start = input.Position
+            start_pos = zombie_count_label.Position
+        end
+    end)
+    
+    zombie_count_label.InputChanged:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseMovement then
+            drag_input = input
+        end
+    end)
+    
+    zombie_count_label.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            dragging = false
+        end
+    end)
+    
+    game:GetService("UserInputService").InputChanged:Connect(function(input)
+        if input == drag_input and dragging then
+            local delta = input.Position - drag_start
+            zombie_count_label.Position = UDim2.new(start_pos.X.Scale, start_pos.X.Offset + delta.X, start_pos.Y.Scale, start_pos.Y.Offset + delta.Y)
+        end
+    end)
+    
+    run_service.RenderStepped:Connect(function()
+        if Config.ZombieCount.Enabled then
+            local count = 0
+            for zombie, data in pairs(active_esp) do
+                if zombie and zombie.Parent then
+                    local humanoid = zombie:FindFirstChildOfClass("Humanoid")
+                    if humanoid and humanoid.Health > 0 then
+                        count = count + 1
+                    end
+                end
+            end
+            zombie_count_label.Text = "Zombies: " .. count
+            zombie_count_label.Visible = true
+        else
+            zombie_count_label.Visible = false
+        end
+    end)
+end
+
+local Window = Library:CreateWindow({
+    Title = "vibecoded.hook",
+    Footer = "version: 1.0",
+    NotifySide = "Right",
+    ShowCustomCursor = true,
+})
+
+local Tabs = {
+    Main = Window:AddTab("Main", "home"),
+    ESP = Window:AddTab("ESP", "eye"),
+    ["UI Settings"] = Window:AddTab("UI Settings", "settings"),
+}
+
+local MainGroup = Tabs.Main:AddLeftGroupbox("Aimbot")
+
+MainGroup:AddToggle("Aimbot", {
+    Text = "Aimbot",
+    Default = false,
+    Callback = function(Value)
+        Config.Aimbot.Enabled = Value
+    end,
+}):AddKeyPicker("AimbotKey", {
+    Default = "MB2",
+    SyncToggleState = false,
+    Mode = "Hold",
+    Text = "Aimbot",
+    NoUI = false,
+})
+
+MainGroup:AddSlider("AimbotFOV", {
+    Text = "FOV Size",
+    Default = 200,
+    Min = 50,
+    Max = 250,
+    Rounding = 0,
+    Compact = false,
+    Callback = function(Value)
+        Config.Aimbot.FOV = Value
+    end,
+})
+
+MainGroup:AddSlider("AimbotSmoothness", {
+    Text = "Smoothness",
+    Default = 1,
+    Min = 1,
+    Max = 10,
+    Rounding = 1,
+    Compact = false,
+    Callback = function(Value)
+        Config.Aimbot.Smoothness = Value
+    end,
+})
+
+MainGroup:AddDropdown("AimbotHitPart", {
+    Values = { "Head", "UpperTorso", "LowerTorso", "HumanoidRootPart" },
+    Default = 1,
+    Multi = false,
+    Text = "Hit Part",
+    Callback = function(Value)
+        Config.Aimbot.HitPart = Value
+    end,
+})
+
+MainGroup:AddToggle("ShowFOV", {
+    Text = "Show FOV Circle",
+    Default = false,
+    Callback = function(Value)
+        Config.Aimbot.ShowFOV = Value
+    end,
+}):AddColorPicker("FOVColor", {
+    Default = Color3.fromRGB(255, 255, 255),
+    Title = "FOV Color",
+    Transparency = 0,
+    Callback = function(Value)
+        Config.Aimbot.FOVColor = Value
+    end,
+})
+
+local MainGroupRight = Tabs.Main:AddRightGroupbox("Hitbox Expander")
+
+MainGroupRight:AddToggle("HitboxExpander", {
+    Text = "Hitbox Expander",
+    Default = false,
+    Callback = function(Value)
+        Config.HitboxExpander.Enabled = Value
+    end,
+})
+
+MainGroupRight:AddSlider("HitboxSize", {
+    Text = "Hitbox Size",
+    Default = 3,
+    Min = 1,
+    Max = 6,
+    Rounding = 1,
+    Compact = false,
+    Callback = function(Value)
+        Config.HitboxExpander.Size = Value
+    end,
+})
+
+local KillAllGroup = Tabs.Main:AddRightGroupbox("Kill All")
+
+KillAllGroup:AddToggle("KillAll", {
+    Text = "Kill All",
+    Default = false,
+    Callback = function(Value)
+        Config.KillAll.Enabled = Value
+    end,
+}):AddKeyPicker("KillAllKey", {
+    Default = "K",
+    SyncToggleState = true,
+    Mode = "Toggle",
+    Text = "Kill All",
+    NoUI = false,
+})
+
+KillAllGroup:AddSlider("KillAllX", {
+    Text = "X Offset",
+    Default = 0.6,
+    Min = -10,
+    Max = 10,
+    Rounding = 1,
+    Compact = false,
+    Callback = function(Value)
+        Config.KillAll.X = Value
+    end,
+})
+
+KillAllGroup:AddSlider("KillAllY", {
+    Text = "Y Offset",
+    Default = -0.1,
+    Min = -10,
+    Max = 10,
+    Rounding = 1,
+    Compact = false,
+    Callback = function(Value)
+        Config.KillAll.Y = Value
+    end,
+})
+
+KillAllGroup:AddSlider("KillAllZ", {
+    Text = "Z Offset",
+    Default = -10,
+    Min = -10,
+    Max = 10,
+    Rounding = 1,
+    Compact = false,
+    Callback = function(Value)
+        Config.KillAll.Z = Value
+    end,
+})
+
+local ESPGroup = Tabs.ESP:AddLeftGroupbox("ESP")
+
+ESPGroup:AddToggle("BoxESP", {
+    Text = "Box ESP",
+    Default = false,
+    Callback = function(Value)
+        Config.BoxESP.Enabled = Value
+    end,
+}):AddColorPicker("BoxColor", {
+    Default = Color3.fromRGB(255, 255, 255),
+    Title = "Box Color",
+    Transparency = 0,
+    Callback = function(Value)
+        Config.BoxESP.Color = Value
+    end,
+})
+
+ESPGroup:AddToggle("SkeletonESP", {
+    Text = "Skeleton ESP",
+    Default = false,
+    Callback = function(Value)
+        Config.SkeletonESP.Enabled = Value
+    end,
+}):AddColorPicker("SkeletonColor", {
+    Default = Color3.fromRGB(255, 255, 255),
+    Title = "Skeleton Color",
+    Transparency = 0,
+    Callback = function(Value)
+        Config.SkeletonESP.Color = Value
+    end,
+})
+
+ESPGroup:AddToggle("ZombieCount", {
+    Text = "Zombie Count",
+    Default = false,
+    Callback = function(Value)
+        Config.ZombieCount.Enabled = Value
+        if zombie_count_label then
+            zombie_count_label.Visible = Value
+        end
+    end,
+})
+
+ESPGroup:AddToggle("Chams", {
+    Text = "Chams",
+    Default = false,
+    Callback = function(Value)
+        Config.Chams.Enabled = Value
+        if not Value then
+            for zombie, data in pairs(active_esp) do
+                if zombie and zombie.Parent then
+                    for _, part in pairs(zombie:GetChildren()) do
+                        if part:IsA("BasePart") then
+                            for _, child in pairs(part:GetChildren()) do
+                                if child.Name == "Chams" or child.Name == "Glow" then
+                                    child:Destroy()
+                                end
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end,
+}):AddColorPicker("ChamsColor", {
+    Default = Color3.fromRGB(255, 0, 0),
+    Title = "Chams Color",
+    Transparency = 0,
+    Callback = function(Value)
+        Config.Chams.Color = Value
+    end,
+}):AddColorPicker("ChamsGlowColor", {
+    Default = Color3.fromRGB(255, 255, 255),
+    Title = "Glow Color",
+    Transparency = 0,
+    Callback = function(Value)
+        Config.Chams.GlowColor = Value
+    end,
+})
+
+ESPGroup:AddToggle("HatESP", {
+    Text = "KKK ESP",
+    Default = false,
+    Callback = function(Value)
+        Config.HatESP.Enabled = Value
+        if Value then
+            for zombie, data in pairs(active_esp) do
+                if zombie and zombie.Parent then
+                    create_hat(zombie)
+                end
+            end
+        else
+            for zombie, data in pairs(active_esp) do
+                if zombie and zombie.Parent then
+                    local hat = zombie:FindFirstChild("PointyHat")
+                    if hat then
+                        hat:Destroy()
+                    end
+                end
+            end
+        end
+    end,
+}):AddColorPicker("HatColor", {
+    Default = Color3.fromRGB(255, 255, 255),
+    Title = "Hat Color",
+    Transparency = 0,
+    Callback = function(Value)
+        Config.HatESP.Color = Value
+        for zombie, data in pairs(active_esp) do
+            if zombie and zombie.Parent then
+                local hat = zombie:FindFirstChild("PointyHat")
+                if hat then
+                    hat.Color = Value
+                end
+            end
+        end
+    end,
+})
+
+local WorldLightingGroup = Tabs.ESP:AddLeftGroupbox("World Lighting")
+
+WorldLightingGroup:AddToggle("CustomFog", {
+    Text = "Custom Fog",
+    Default = false,
+    Callback = function(Value)
+        Config.WorldLighting.CustomFog = Value
+        if Value then
+            game:GetService("Lighting").FogColor = Config.WorldLighting.FogColor
+        end
+    end,
+}):AddColorPicker("FogColor", {
+    Default = Color3.fromRGB(255, 255, 255),
+    Title = "Fog Color",
+    Transparency = 0,
+    Callback = function(Value)
+        Config.WorldLighting.FogColor = Value
+        if Config.WorldLighting.CustomFog then
+            game:GetService("Lighting").FogColor = Value
+        end
+    end,
+})
+
+WorldLightingGroup:AddToggle("Ambience", {
+    Text = "Ambience",
+    Default = false,
+    Callback = function(Value)
+        Config.WorldLighting.Ambience = Value
+        if Value then
+            game:GetService("Lighting").Ambient = Config.WorldLighting.AmbienceColor
+        end
+    end,
+}):AddColorPicker("AmbienceColor", {
+    Default = Color3.fromRGB(255, 255, 255),
+    Title = "Ambience Color",
+    Transparency = 0,
+    Callback = function(Value)
+        Config.WorldLighting.AmbienceColor = Value
+        if Config.WorldLighting.Ambience then
+            game:GetService("Lighting").Ambient = Value
+        end
+    end,
+})
+
+WorldLightingGroup:AddSlider("Exposure", {
+    Text = "Exposure Compensation",
+    Default = 1,
+    Min = 0,
+    Max = 3,
+    Rounding = 1,
+    Compact = false,
+    Callback = function(Value)
+        Config.WorldLighting.Exposure = Value
+        game:GetService("Lighting").ExposureCompensation = Value
+    end,
+})
+
+local CursorGroup = Tabs.ESP:AddRightGroupbox("Cursor")
+
+CursorGroup:AddToggle("NaziCursor", {
+    Text = "Nazi Cursor",
+    Default = false,
+    Callback = function(Value)
+        Config.NaziCursor.Enabled = Value
+        if not Value and cursor_connection then
+            cursor_connection:Disconnect()
+            for _, drawing in pairs(cursor_drawings) do
+                if drawing then
+                    drawing:Remove()
+                end
+            end
+            cursor_drawings = {}
+        end
+    end,
+})
+
+CursorGroup:AddSlider("CursorSize", {
+    Text = "Cursor Size",
+    Default = 5,
+    Min = 1,
+    Max = 10,
+    Rounding = 1,
+    Compact = false,
+    Callback = function(Value)
+        Config.NaziCursor.Size = Value
+    end,
+})
+
+CursorGroup:AddSlider("CursorSpeed", {
+    Text = "Rotation Speed",
+    Default = 1.2,
+    Min = 0.1,
+    Max = 5,
+    Rounding = 1,
+    Compact = false,
+    Callback = function(Value)
+        Config.NaziCursor.Speed = Value
+    end,
+})
+
+CursorGroup:AddSlider("CursorThickness", {
+    Text = "Thickness",
+    Default = 1,
+    Min = 1,
+    Max = 5,
+    Rounding = 1,
+    Compact = false,
+    Callback = function(Value)
+        Config.NaziCursor.Thickness = Value
+    end,
+})
+
+local MenuGroup = Tabs["UI Settings"]:AddLeftGroupbox("Menu")
+
+MenuGroup:AddToggle("ShowCustomCursor", {
+    Text = "Custom Cursor",
+    Default = true,
+    Callback = function(Value)
+        Library.ShowCustomCursor = Value
+    end,
+})
+
+MenuGroup:AddDropdown("NotificationSide", {
+    Values = { "Left", "Right" },
+    Default = "Right",
+    Text = "Notification Side",
+    Callback = function(Value)
+        Library:SetNotifySide(Value)
+    end,
+})
+
+MenuGroup:AddDivider()
+
+MenuGroup:AddLabel("Menu bind"):AddKeyPicker("MenuKeybind", { 
+    Default = "RightShift", 
+    NoUI = true, 
+    Text = "Menu keybind" 
+})
+
+MenuGroup:AddButton("Unload", function()
+    Library:Unload()
+end)
+
+Library.ToggleKeybind = Options.MenuKeybind
+
+ThemeManager:SetLibrary(Library)
+SaveManager:SetLibrary(Library)
+SaveManager:IgnoreThemeSettings()
+SaveManager:SetIgnoreIndexes({ "MenuKeybind" })
+ThemeManager:SetFolder("KurruptZombies")
+SaveManager:SetFolder("KurruptZombies/configs")
+SaveManager:BuildConfigSection(Tabs["UI Settings"])
+ThemeManager:ApplyToTab(Tabs["UI Settings"])
+
+task.wait(0.5)
+create_fov_circle()
+create_zombie_counter()
+setup_nazi_cursor()
+setup_aimbot()
+update_hitboxes()
+update_chams()
+setup_zombie_monitoring()
+SaveManager:LoadAutoloadConfig()
+
+print("vibecoded is ud")
